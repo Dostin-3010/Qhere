@@ -520,7 +520,7 @@ function QRModal({ student, onClose, onStudentUpdated }) {
   const qrValue = buildStudentQrPayload(displayStudent)
 
   const handlePrint = () => {
-    const qrSvg = buildQrSvgMarkup(qrValue, 240)
+    const qrSvg = buildQrSvgMarkup(qrValue, 320)
     const win = window.open('', '_blank')
     if (!win) return
     win.document.write(`
@@ -542,14 +542,14 @@ function QRModal({ student, onClose, onStudentUpdated }) {
 
   return (
     <div className="ms-modal-overlay" onClick={onClose}>
-      <div className="ms-modal" style={{maxWidth:380}} onClick={e => e.stopPropagation()}>
+      <div className="ms-modal" style={{maxWidth:460}} onClick={e => e.stopPropagation()}>
         <div className="ms-modal-header">
           <div className="ms-modal-title">Código QR</div>
           <button className="ms-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="ms-qr-wrap">
           <div className="ms-qr-box">
-            {qrValue ? <RealQRCode value={qrValue} size={180} /> : <div style={{ color: '#8BBAD8', fontSize: 12 }}>Preparando QR...</div>}
+            {qrValue ? <RealQRCode value={qrValue} size={260} /> : <div style={{ color: '#8BBAD8', fontSize: 12 }}>Preparando QR...</div>}
           </div>
           <div className="ms-qr-info">
             <div className="ms-qr-name">{displayStudent.nombre}</div>

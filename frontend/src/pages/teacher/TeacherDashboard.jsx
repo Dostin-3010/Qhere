@@ -438,6 +438,106 @@ function buildScanResultDetails(result) {
   return details
 }
 
+// ─── Lectura robusta de QR desde imagen ─────────────────────
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    const url = URL.createObjectURL(file)
+
+    image.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve(image)
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('No se pudo abrir la imagen seleccionada.'))
+    }
+    image.src = url
+  })
+}
+
+async function canvasToPngFile(canvas, name) {
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png', 1))
+  if (!blob) return null
+  return new File([blob], name, { type: 'image/png' })
+}
+
+function drawImageVariant(image, { crop = null, maxSize = 1800, threshold = false }) {
+  const source = crop || { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }
+  const scale = Math.min(maxSize / Math.max(source.width, source.height), 4)
+  const width = Math.max(320, Math.round(source.width * scale))
+  const height = Math.max(320, Math.round(source.height * scale))
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+
+  canvas.width = width
+  canvas.height = height
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, width, height)
+  context.imageSmoothingEnabled = false
+  context.drawImage(image, source.x, source.y, source.width, source.height, 0, 0, width, height)
+
+  if (threshold) {
+    const imageData = context.getImageData(0, 0, width, height)
+    const data = imageData.data
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = (data[i] * 0.299) + (data[i + 1] * 0.587) + (data[i + 2] * 0.114)
+      const value = gray > 150 ? 255 : 0
+      data[i] = value
+      data[i + 1] = value
+      data[i + 2] = value
+      data[i + 3] = 255
+    }
+    context.putImageData(imageData, 0, 0)
+  }
+
+  return canvas
+}
+
+function centerCrop(image, ratio) {
+  const size = Math.min(image.naturalWidth, image.naturalHeight) * ratio
+  return {
+    x: Math.max(0, (image.naturalWidth - size) / 2),
+    y: Math.max(0, (image.naturalHeight - size) / 2),
+    width: size,
+    height: size,
+  }
+}
+
+async function buildQrReadableFileVariants(file) {
+  const image = await loadImageFromFile(file)
+  const variants = [{ file, label: 'original' }]
+  const configs = [
+    { name: 'ampliada', maxSize: 2200 },
+    { name: 'alto-contraste', maxSize: 2200, threshold: true },
+    { name: 'centro', crop: centerCrop(image, 0.86), maxSize: 1800 },
+    { name: 'centro-contraste', crop: centerCrop(image, 0.72), maxSize: 1800, threshold: true },
+  ]
+
+  for (const config of configs) {
+    const canvas = drawImageVariant(image, config)
+    const variantFile = await canvasToPngFile(canvas, `${file.name}-${config.name}.png`)
+    if (variantFile) variants.push({ file: variantFile, label: config.name })
+  }
+
+  return variants
+}
+
+function normalizeQrReadError(error, fileName) {
+  const raw = String(error?.message || error || '')
+  if (raw.includes('No MultiFormat Readers') || raw.includes('NotFoundException')) {
+    return {
+      msg: 'No pude detectar un QR en esa imagen. Prueba con una captura donde el codigo salga completo, grande y con fondo blanco alrededor.',
+      sub: `Archivo probado: ${fileName}`,
+    }
+  }
+
+  return {
+    msg: raw || 'No se pudo leer el QR de la imagen. Intenta con una captura mas nitida.',
+    sub: `Archivo probado: ${fileName}`,
+  }
+}
+
 // ─── Toast hook ─────────────────────────────────────────────
 function useToast() {
   const [toasts, setToasts] = useState([])
@@ -885,16 +985,32 @@ export default function TeacherDashboard() {
       fileReaderElement.innerHTML = ''
 
       html5QrRef.current = new Html5Qrcode('td-qr-file-reader')
-      const decodedText = await html5QrRef.current.scanFile(imageFile, false)
+      const variants = await buildQrReadableFileVariants(imageFile)
+      let decodedText = ''
+      let lastError = null
+
+      for (const variant of variants) {
+        try {
+          decodedText = await html5QrRef.current.scanFile(variant.file, false)
+          break
+        } catch (scanError) {
+          lastError = scanError
+        }
+      }
+
+      if (!decodedText) {
+        throw lastError || new Error('No se pudo leer el QR de la imagen.')
+      }
 
       await handleQrScan(decodedText)
     } catch (err) {
       await stopScanner()
       console.error(err)
+      const friendlyError = normalizeQrReadError(err, imageFile.name)
       setScanResult({
         type: 'error',
-        msg: err?.message || 'No se pudo leer el QR de la imagen. Intenta con una captura mas nitida.',
-        sub: `Archivo probado: ${imageFile.name}`,
+        msg: friendlyError.msg,
+        sub: friendlyError.sub,
       })
     } finally {
       setFileScanLoading(false)
