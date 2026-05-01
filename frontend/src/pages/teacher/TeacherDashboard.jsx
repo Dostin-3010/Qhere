@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import jsQR from 'jsqr'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { buildEffectiveSchedule, parseStudentQrPayload, getScanAttendanceMeta } from '../../lib/qrAttendance'
@@ -492,11 +493,28 @@ async function scanCanvasWithBarcodeDetector(canvas) {
   }
 }
 
-function drawImageVariant(image, { crop = null, maxSize = 1800, threshold = false }) {
+function scanCanvasWithJsQr(canvas) {
+  try {
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
+    const result = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: 'attemptBoth',
+    })
+
+    return result?.data || ''
+  } catch {
+    return ''
+  }
+}
+
+function drawImageVariant(image, { crop = null, maxSize = 1800, threshold = false, paddingRatio = 0.04 }) {
   const source = crop || { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }
   const scale = Math.min(maxSize / Math.max(source.width, source.height), 4)
-  const width = Math.max(320, Math.round(source.width * scale))
-  const height = Math.max(320, Math.round(source.height * scale))
+  const contentWidth = Math.max(320, Math.round(source.width * scale))
+  const contentHeight = Math.max(320, Math.round(source.height * scale))
+  const padding = Math.round(Math.max(contentWidth, contentHeight) * paddingRatio)
+  const width = contentWidth + (padding * 2)
+  const height = contentHeight + (padding * 2)
   const canvas = document.createElement('canvas')
   const context = canvas.getContext('2d', { willReadFrequently: true })
 
@@ -505,7 +523,7 @@ function drawImageVariant(image, { crop = null, maxSize = 1800, threshold = fals
   context.fillStyle = '#ffffff'
   context.fillRect(0, 0, width, height)
   context.imageSmoothingEnabled = false
-  context.drawImage(image, source.x, source.y, source.width, source.height, 0, 0, width, height)
+  context.drawImage(image, source.x, source.y, source.width, source.height, padding, padding, contentWidth, contentHeight)
 
   if (threshold) {
     const imageData = context.getImageData(0, 0, width, height)
@@ -569,6 +587,9 @@ async function buildQrReadableFileVariants(file) {
 }
 
 async function scanQrVariant(reader, variant) {
+  const jsQrResult = scanCanvasWithJsQr(variant.canvas)
+  if (jsQrResult) return jsQrResult
+
   const nativeResult = await scanCanvasWithBarcodeDetector(variant.canvas)
   if (nativeResult) return nativeResult
 
