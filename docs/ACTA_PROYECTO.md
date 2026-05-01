@@ -1,4 +1,4 @@
-# ACTA DE PROYECTO
+﻿# ACTA DE PROYECTO
 
 ## Titulo del Proyecto
 
@@ -6,7 +6,7 @@
 
 ## Presentado por
 
-**Jose Luis Polanco**  
+**Dustin Polanco**  
 Desarrollador del proyecto
 
 **Jose Rijo**  
@@ -187,3 +187,4 @@ La innovacion principal consiste en unir control de asistencia por QR, gestion a
 ## Cierre
 
 QHere queda definido como una solucion academica completa para centros educativos que requieren modernizar el control de asistencia. El proyecto permite mejorar la rapidez, seguridad, organizacion y trazabilidad de los procesos de asistencia escolar mediante una plataforma web funcional, documentada y preparada para entrega.
+

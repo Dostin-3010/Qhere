@@ -1,10 +1,10 @@
-# Presentacion Tipo Propuesta
+﻿# Presentacion Tipo Propuesta
 
 ## 1. Portada
 
 QHere - Sistema de Control de Asistencia Escolar con QR
 
-Desarrollador: Jose Luis Polanco
+Desarrollador: Dustin Polanco
 
 Administrador de proyecto: Jose Rijo
 
@@ -63,3 +63,4 @@ El sistema cubre los requerimientos RF-01 a RF-25 definidos para el proyecto, in
 ## 10. Cierre
 
 QHere queda preparado como solucion academica completa para centros educativos que requieren control de asistencia moderno, seguro y documentado.
+
