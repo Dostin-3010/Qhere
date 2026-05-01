@@ -1,0 +1,800 @@
+from datetime import datetime
+import secrets
+import string
+
+from flask import Blueprint, jsonify, request
+
+from ..config import Config
+from ..services.notification_service import send_direct_email
+from ..supabase_client import get_supabase_client
+
+
+management_bp = Blueprint('management', __name__)
+supabase = get_supabase_client()
+_PROFILE_SCHOOL_ID_SUPPORTED = None
+_PROFILE_OPTIONAL_COLUMNS = {}
+
+ROLE_LABELS = {
+    'admin': 'Director',
+    'teacher': 'Docente',
+    'parent': 'Padre/Tutor',
+}
+
+
+def _normalize_email(value=''):
+    return str(value or '').strip().lower()
+
+
+def _normalize_optional_uuid(value):
+    normalized = str(value or '').strip().lower()
+    if normalized in ['', 'undefined', 'null', 'none']:
+        return None
+    return str(value).strip()
+
+
+def _utcnow():
+    return datetime.utcnow().isoformat()
+
+
+def _normalize_role(value):
+    role = str(value or '').strip().lower()
+    return role if role in ['admin', 'teacher', 'parent'] else ''
+
+
+def _extract_token():
+    return request.headers.get('Authorization', '').replace('Bearer ', '').strip()
+
+
+def _fetch_profile(user_id):
+    result = (
+        supabase.table('profiles')
+        .select('*')
+        .eq('id', user_id)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    return rows[0] if rows else None
+
+
+def _fetch_school(school_id):
+    if not school_id:
+        return None
+    result = (
+        supabase.table('schools')
+        .select('*')
+        .eq('id', school_id)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    return rows[0] if rows else None
+
+
+def _delete_profile(profile_id):
+    supabase.table('profiles').delete().eq('id', profile_id).execute()
+
+
+def _auth_user_exists(user_id):
+    if not user_id:
+        return False
+
+    try:
+        return bool(_fetch_auth_user(user_id))
+    except Exception:
+        return False
+
+
+def _fetch_auth_user(user_id):
+    if not user_id:
+        return None
+
+    response = supabase.auth.admin.get_user_by_id(str(user_id))
+    return getattr(response, 'user', None)
+
+
+def _get_auth_user_id(auth_user):
+    if not auth_user:
+        return None
+    return str(getattr(auth_user, 'id', None) or (auth_user.get('id') if isinstance(auth_user, dict) else '') or '').strip()
+
+
+def _update_auth_metadata(user_id, updates):
+    auth_user = _fetch_auth_user(user_id)
+    if not auth_user:
+        return None
+
+    current_metadata = _extract_user_metadata(auth_user)
+    next_metadata = {**current_metadata, **{key: value for key, value in updates.items() if value is not None}}
+    response = supabase.auth.admin.update_user_by_id(str(user_id), {
+        'user_metadata': next_metadata,
+    })
+    return getattr(response, 'user', None)
+
+
+def _find_auth_user_by_email(email):
+    normalized_email = _normalize_email(email)
+    if not normalized_email:
+        return None
+
+    page = 1
+    while True:
+        users = supabase.auth.admin.list_users(page=page, per_page=200) or []
+        if not users:
+            return None
+
+        for user in users:
+            user_email = _normalize_email(getattr(user, 'email', None) or (user.get('email') if isinstance(user, dict) else None))
+            if user_email == normalized_email:
+                return user
+
+        if len(users) < 200:
+            return None
+        page += 1
+
+
+def _cleanup_orphan_profile_by_email(email):
+    profile_fields = ['id', 'email', 'full_name', 'phone', 'role', 'created_at']
+    if _profiles_supports_column('approval_status'):
+        profile_fields.append('approval_status')
+    if _profiles_supports_column('approval_requested_at'):
+        profile_fields.append('approval_requested_at')
+    if _profiles_supports_column('approval_note'):
+        profile_fields.append('approval_note')
+    if _profiles_supports_school_id():
+        profile_fields.append('school_id')
+
+    result = (
+        supabase.table('profiles')
+        .select(', '.join(profile_fields))
+        .eq('email', _normalize_email(email))
+        .limit(1)
+        .execute()
+    )
+
+    rows = result.data or []
+    if not rows:
+        return None
+
+    profile_row = rows[0]
+    if _auth_user_exists(profile_row.get('id')):
+        return profile_row
+
+    _delete_profile(profile_row.get('id'))
+    return None
+
+
+def _create_school_record(payload):
+    result = (
+        supabase.table('schools')
+        .insert(payload)
+        .execute()
+    )
+
+    rows = result.data or []
+    if rows:
+        return rows[0]
+
+    fallback = (
+        supabase.table('schools')
+        .select('*')
+        .eq('nombre', payload.get('nombre'))
+        .order('created_at', desc=True)
+        .limit(1)
+        .execute()
+    )
+    fallback_rows = fallback.data or []
+    return fallback_rows[0] if fallback_rows else None
+
+
+def _profiles_supports_school_id():
+    global _PROFILE_SCHOOL_ID_SUPPORTED
+
+    if _PROFILE_SCHOOL_ID_SUPPORTED is not None:
+        return _PROFILE_SCHOOL_ID_SUPPORTED
+
+    try:
+        supabase.table('profiles').select('school_id').limit(1).execute()
+        _PROFILE_SCHOOL_ID_SUPPORTED = True
+    except Exception:
+        return False
+
+    return _PROFILE_SCHOOL_ID_SUPPORTED
+
+
+def _profiles_supports_column(column_name):
+    if column_name in _PROFILE_OPTIONAL_COLUMNS:
+        return _PROFILE_OPTIONAL_COLUMNS[column_name]
+
+    try:
+        supabase.table('profiles').select(column_name).limit(1).execute()
+        _PROFILE_OPTIONAL_COLUMNS[column_name] = True
+    except Exception:
+        return False
+
+    return _PROFILE_OPTIONAL_COLUMNS[column_name]
+
+
+def _filter_profile_payload(payload):
+    optional_columns = {
+        'school_id',
+        'approval_status',
+        'approval_requested_at',
+        'approved_at',
+        'approved_by',
+        'approval_note',
+    }
+
+    next_payload = {}
+    for key, value in payload.items():
+        if key in optional_columns and not _profiles_supports_column(key):
+            continue
+        next_payload[key] = value
+
+    return next_payload
+
+
+def _extract_user_metadata(auth_user):
+    metadata = getattr(auth_user, 'user_metadata', None)
+    if isinstance(metadata, dict):
+        return metadata
+
+    if isinstance(auth_user, dict):
+        metadata = auth_user.get('user_metadata')
+        if isinstance(metadata, dict):
+            return metadata
+
+    return {}
+
+
+def _resolve_school_id_for_profile(profile, auth_user=None):
+    if not profile:
+        return None
+
+    direct_school_id = _normalize_optional_uuid(profile.get('school_id'))
+    if direct_school_id:
+        return direct_school_id
+
+    metadata_school_id = _normalize_optional_uuid(_extract_user_metadata(auth_user).get('school_id'))
+    if metadata_school_id:
+        return metadata_school_id
+
+    if profile.get('role') == 'admin':
+        full_name = str(profile.get('full_name') or '').strip()
+        if full_name:
+            result = (
+                supabase.table('schools')
+                .select('id')
+                .eq('director', full_name)
+                .order('created_at', desc=True)
+                .limit(1)
+                .execute()
+            )
+            rows = result.data or []
+            if rows:
+                return rows[0].get('id')
+
+    return None
+
+
+def _resolve_approval_status_for_profile(profile, auth_user=None):
+    direct_status = str((profile or {}).get('approval_status') or '').strip().lower()
+    if direct_status in ['pending', 'approved', 'rejected']:
+        return direct_status
+
+    metadata_status = str(_extract_user_metadata(auth_user).get('approval_status') or '').strip().lower()
+    if metadata_status in ['pending', 'approved', 'rejected']:
+        return metadata_status
+
+    return 'approved'
+
+
+def _is_super_admin(profile):
+    return _normalize_email(profile.get('email')) == Config.SUPER_ADMIN_EMAIL
+
+
+def _require_profile():
+    token = _extract_token()
+    if not token:
+        return None, None, (jsonify({'error': 'Token requerido.'}), 401)
+
+    try:
+        auth_user = supabase.auth.get_user(token).user
+        profile = _fetch_profile(str(auth_user.id))
+    except Exception as exc:
+        return None, None, (jsonify({'error': str(exc)}), 401)
+
+    if not profile:
+        return None, None, (jsonify({'error': 'No se encontro el perfil del usuario.'}), 403)
+
+    resolved_school_id = _resolve_school_id_for_profile(profile, auth_user)
+    if resolved_school_id:
+        profile['school_id'] = resolved_school_id
+    profile['approval_status'] = _resolve_approval_status_for_profile(profile, auth_user)
+
+    return auth_user, profile, None
+
+
+def _require_director():
+    auth_user, profile, error_response = _require_profile()
+    if error_response:
+        return None, None, error_response
+
+    if profile.get('role') != 'admin':
+        return None, None, (jsonify({'error': 'Solo direccion puede realizar esta accion.'}), 403)
+
+    if profile.get('approval_status') != 'approved' and not _is_super_admin(profile):
+        return None, None, (jsonify({'error': 'Tu acceso directivo aun no esta aprobado.'}), 403)
+
+    return auth_user, profile, None
+
+
+def _require_super_admin():
+    auth_user, profile, error_response = _require_director()
+    if error_response:
+        return None, None, error_response
+
+    if not _is_super_admin(profile):
+        return None, None, (jsonify({'error': 'Este panel es exclusivo del administrador absoluto.'}), 403)
+
+    return auth_user, profile, None
+
+
+def _generate_password(length=12):
+    alphabet = string.ascii_letters + string.digits + '@#'
+    while True:
+        candidate = ''.join(secrets.choice(alphabet) for _ in range(length))
+        if any(char.islower() for char in candidate) and any(char.isupper() for char in candidate) and any(char.isdigit() for char in candidate):
+            return candidate
+
+
+def _send_director_request_email(payload):
+    subject = f'Nueva solicitud de direccion - {payload["school_name"]}'
+    send_direct_email(
+        Config.DIRECTOR_APPROVAL_EMAIL,
+        subject,
+        [
+            'Se registro una nueva solicitud de direccion en QHere.',
+            '',
+            f'Centro: {payload["school_name"]}',
+            f'Solicitante: {payload["full_name"]}',
+            f'Correo: {payload["email"]}',
+            f'Telefono: {payload.get("phone") or "No especificado"}',
+            f'Fecha: {_utcnow()}',
+            '',
+            'Revisa la solicitud desde el panel absoluto de administracion.',
+        ],
+    )
+
+
+@management_bp.route('/director-requests', methods=['POST'])
+def request_director_access():
+    data = request.get_json() or {}
+    email = _normalize_email(data.get('email'))
+    password = str(data.get('password') or '')
+    full_name = str(data.get('full_name') or '').strip()
+    phone = str(data.get('phone') or '').strip()
+    school_name = str(data.get('school_name') or '').strip()
+    school_email = _normalize_email(data.get('school_email'))
+    school_phone = str(data.get('school_phone') or '').strip()
+    school_address = str(data.get('school_address') or '').strip()
+
+    if not email or not password or not full_name or not school_name:
+        return jsonify({'error': 'Nombre, correo, contrasena y centro educativo son obligatorios.'}), 400
+    if len(password) < 6:
+        return jsonify({'error': 'La contrasena debe tener al menos 6 caracteres.'}), 400
+
+    existing_profile = _cleanup_orphan_profile_by_email(email)
+    existing_auth_user = _find_auth_user_by_email(email)
+    existing_status = _resolve_approval_status_for_profile(existing_profile, existing_auth_user)
+
+    if existing_profile and existing_status != 'rejected':
+        if existing_status == 'pending':
+            return jsonify({'error': 'Ya tienes una solicitud pendiente con ese correo. Espera la revision del administrador absoluto.'}), 409
+        return jsonify({'error': 'Ya existe una cuenta aprobada con ese correo. Inicia sesion o usa recuperacion de contrasena.'}), 409
+
+    if existing_auth_user and not existing_profile:
+        metadata_status = _resolve_approval_status_for_profile({}, existing_auth_user)
+        if metadata_status != 'rejected':
+            return jsonify({'error': 'Ese correo todavia existe en Authentication de Supabase. Si necesitas otra solicitud, rechaza primero la cuenta o usa otro correo.'}), 409
+
+    school = None
+
+    try:
+        school = _create_school_record({
+            'nombre': school_name,
+            'direccion': school_address or None,
+            'telefono': school_phone or None,
+            'email': school_email or None,
+            'director': full_name,
+            'configurado': False,
+        })
+        if not school:
+            raise ValueError('No se pudo crear el centro educativo.')
+
+        auth_user = None
+        metadata = {
+            'full_name': full_name,
+            'role': 'admin',
+            'approval_status': 'pending',
+            'school_id': school['id'],
+        }
+
+        if existing_auth_user:
+            auth_user_id = _get_auth_user_id(existing_auth_user)
+            auth_result = supabase.auth.admin.update_user_by_id(auth_user_id, {
+                'password': password,
+                'email_confirm': True,
+                'user_metadata': metadata,
+            })
+            auth_user = getattr(auth_result, 'user', None)
+        else:
+            auth_result = supabase.auth.admin.create_user({
+                'email': email,
+                'password': password,
+                'email_confirm': True,
+                'user_metadata': metadata,
+            })
+            auth_user = auth_result.user
+
+        auth_user_id = str(getattr(auth_user, 'id', None) or _get_auth_user_id(existing_auth_user))
+        if not auth_user_id:
+            raise ValueError('No se pudo confirmar la cuenta directiva para reenviar la solicitud.')
+
+        profile_payload = {
+            'id': auth_user_id,
+            'full_name': full_name,
+            'email': email,
+            'phone': phone or None,
+            'role': 'admin',
+            'approval_status': 'pending',
+            'approval_requested_at': _utcnow(),
+        }
+        supabase.table('profiles').upsert(_filter_profile_payload({
+            **profile_payload,
+            'school_id': school['id'],
+        })).execute()
+
+        _send_director_request_email({
+            'school_name': school_name,
+            'full_name': full_name,
+            'email': email,
+            'phone': phone,
+        })
+
+        return jsonify({
+            'message': 'Solicitud enviada. El administrador absoluto recibira la notificacion por correo.',
+            'school': school,
+            'profile': profile_payload,
+            'request_reopened': bool(existing_profile or existing_auth_user),
+        }), 201
+    except Exception as exc:
+        if school and school.get('id'):
+            try:
+                supabase.table('schools').delete().eq('id', school['id']).execute()
+            except Exception:
+                pass
+        return jsonify({'error': str(exc)}), 400
+
+
+@management_bp.route('/users', methods=['POST'])
+def create_managed_user():
+    _, actor_profile, error_response = _require_director()
+    if error_response:
+        return error_response
+
+    data = request.get_json() or {}
+    role = _normalize_role(data.get('role'))
+    full_name = str(data.get('full_name') or '').strip()
+    email = _normalize_email(data.get('email'))
+    phone = str(data.get('phone') or '').strip()
+    provided_password = str(data.get('password') or '').strip()
+    school_id = _normalize_optional_uuid(data.get('school_id')) or actor_profile.get('school_id')
+    permisos = data.get('permisos') if isinstance(data.get('permisos'), list) else []
+    secciones_ids = data.get('secciones_ids') if isinstance(data.get('secciones_ids'), list) else []
+    margen_tardanza = data.get('margen_tardanza_minutos')
+
+    if role not in ['teacher', 'parent', 'admin']:
+        return jsonify({'error': 'Rol invalido para este flujo.'}), 400
+
+    if not _is_super_admin(actor_profile) and role == 'admin':
+        return jsonify({'error': 'Solo el administrador absoluto puede crear directores.'}), 403
+
+    if not _is_super_admin(actor_profile) and school_id != actor_profile.get('school_id'):
+        return jsonify({'error': 'No puedes crear usuarios fuera de tu centro educativo.'}), 403
+
+    if not email or not full_name:
+        return jsonify({'error': 'Nombre y correo son obligatorios.'}), 400
+
+    existing_profile = _cleanup_orphan_profile_by_email(email)
+    if existing_profile:
+        return jsonify({'error': 'Ya existe un perfil registrado con ese correo.'}), 409
+
+    existing_auth_user = _find_auth_user_by_email(email)
+    if existing_auth_user:
+        return jsonify({'error': 'Ese correo todavia existe en Authentication de Supabase. Eliminelo tambien desde Authentication > Users antes de volver a crearlo.'}), 409
+
+    password = provided_password or _generate_password()
+
+    try:
+        auth_result = supabase.auth.admin.create_user({
+            'email': email,
+            'password': password,
+            'email_confirm': True,
+            'user_metadata': {
+                'full_name': full_name,
+                'role': role,
+                'school_id': school_id,
+                'approval_status': 'approved',
+            },
+        })
+
+        payload = {
+            'id': str(auth_result.user.id),
+            'full_name': full_name,
+            'email': email,
+            'phone': phone or None,
+            'role': role,
+            'approval_status': 'approved',
+            'approved_at': _utcnow(),
+            'approved_by': actor_profile.get('id'),
+        }
+        if role == 'teacher':
+            payload['permisos'] = permisos
+            payload['secciones_ids'] = secciones_ids
+            payload['margen_tardanza_minutos'] = int(margen_tardanza or 30)
+
+        supabase.table('profiles').upsert(_filter_profile_payload({
+            **payload,
+            'school_id': school_id,
+        })).execute()
+
+        return jsonify({
+            'message': f'{ROLE_LABELS.get(role, "Usuario")} creado correctamente.',
+            'profile': payload,
+            'generated_password': None if provided_password else password,
+        }), 201
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+@management_bp.route('/super-admin/overview', methods=['GET'])
+def super_admin_overview():
+    _, actor_profile, error_response = _require_super_admin()
+    if error_response:
+        return error_response
+
+    try:
+        director_fields = ['id', 'full_name', 'email', 'phone', 'role', 'created_at']
+        if _profiles_supports_column('approval_status'):
+            director_fields.append('approval_status')
+        if _profiles_supports_column('approval_requested_at'):
+            director_fields.append('approval_requested_at')
+        if _profiles_supports_column('approved_at'):
+            director_fields.append('approved_at')
+        if _profiles_supports_column('approval_note'):
+            director_fields.append('approval_note')
+        if _profiles_supports_school_id():
+            director_fields.append('school_id')
+
+        schools_result = supabase.table('schools').select('*').order('created_at', desc=True).execute()
+        directors_result = (
+            supabase.table('profiles')
+            .select(', '.join(director_fields))
+            .eq('role', 'admin')
+            .order('created_at', desc=True)
+            .execute()
+        )
+
+        schools = schools_result.data or []
+        schools_by_id = {school['id']: school for school in schools}
+
+        directors = []
+        for item in directors_result.data or []:
+            auth_user = None
+            try:
+                auth_user = _fetch_auth_user(item.get('id'))
+            except Exception:
+                auth_user = None
+
+            resolved_school_id = _resolve_school_id_for_profile(item, auth_user)
+            school = schools_by_id.get(resolved_school_id)
+            approval_status = _resolve_approval_status_for_profile(item, auth_user)
+            directors.append({
+                **item,
+                'school_id': resolved_school_id,
+                'approval_status': approval_status,
+                'school': school,
+                'auth_exists': bool(auth_user),
+            })
+
+        panel_notifications = []
+        try:
+            notifications_result = (
+                supabase.table('notification_queue')
+                .select('id, subject, payload, status, created_at, scheduled_for, recipient_id, channel')
+                .eq('channel', 'panel')
+                .eq('recipient_id', actor_profile.get('id'))
+                .order('created_at', desc=True)
+                .limit(8)
+                .execute()
+            )
+            panel_notifications = notifications_result.data or []
+        except Exception:
+            panel_notifications = []
+
+        return jsonify({
+            'super_admin': {
+                'email': actor_profile.get('email'),
+                'full_name': actor_profile.get('full_name'),
+            },
+            'stats': {
+                'schools': len(schools),
+                'directors': len(directors),
+                'pending_directors': len([item for item in directors if item.get('approval_status') == 'pending']),
+            },
+            'schools': schools,
+            'directors': directors,
+            'panel_notifications': panel_notifications,
+        }), 200
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+@management_bp.route('/super-admin/schools', methods=['POST'])
+def create_school():
+    _, _, error_response = _require_super_admin()
+    if error_response:
+        return error_response
+
+    data = request.get_json() or {}
+    nombre = str(data.get('nombre') or '').strip()
+    direccion = str(data.get('direccion') or '').strip()
+    telefono = str(data.get('telefono') or '').strip()
+    email = _normalize_email(data.get('email'))
+    director = str(data.get('director') or '').strip()
+
+    if not nombre:
+        return jsonify({'error': 'El nombre del centro es obligatorio.'}), 400
+
+    try:
+        school = _create_school_record({
+            'nombre': nombre,
+            'direccion': direccion or None,
+            'telefono': telefono or None,
+            'email': email or None,
+            'director': director or None,
+            'configurado': False,
+        })
+        if not school:
+            raise ValueError('No se pudo crear el centro educativo.')
+        return jsonify({'school': school}), 201
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+@management_bp.route('/super-admin/schools/<school_id>/assign-director', methods=['POST'])
+def assign_director_to_school(school_id):
+    _, actor_profile, error_response = _require_super_admin()
+    if error_response:
+        return error_response
+
+    school_id = _normalize_optional_uuid(school_id)
+    director_profile_id = _normalize_optional_uuid((request.get_json() or {}).get('director_profile_id'))
+
+    if not school_id or not director_profile_id:
+        return jsonify({'error': 'Centro y director son obligatorios.'}), 400
+
+    school = _fetch_school(school_id)
+    if not school:
+        return jsonify({'error': 'No se encontro el centro educativo.'}), 404
+
+    target = _fetch_profile(director_profile_id)
+    if not target or target.get('role') != 'admin':
+        return jsonify({'error': 'No se encontro un director valido para asignar.'}), 404
+    if not _auth_user_exists(director_profile_id):
+        return jsonify({'error': 'La cuenta directiva fue borrada de Auth. Elimina ese perfil o crea la cuenta de nuevo.'}), 400
+
+    try:
+        supabase.table('schools').update({
+            'director': target.get('full_name') or school.get('director'),
+        }).eq('id', school_id).execute()
+
+        director_payload = _filter_profile_payload({
+            'approval_status': 'approved',
+            'approved_by': actor_profile.get('id'),
+            'approved_at': _utcnow(),
+            'school_id': school_id,
+        })
+
+        profile_update_applied = bool(director_payload)
+        if profile_update_applied:
+            supabase.table('profiles').update(director_payload).eq('id', director_profile_id).execute()
+        auth_user = _update_auth_metadata(director_profile_id, {
+            'full_name': target.get('full_name'),
+            'role': 'admin',
+            'school_id': school_id,
+            'approval_status': 'approved',
+        })
+
+        return jsonify({
+            'message': 'Centro y director vinculados correctamente.',
+            'school_id': school_id,
+            'director_id': director_profile_id,
+            'director_name': target.get('full_name'),
+            'profile_update_applied': profile_update_applied,
+            'auth_metadata_updated': bool(auth_user),
+        }), 200
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+@management_bp.route('/super-admin/directors/<profile_id>/<action>', methods=['POST'])
+def update_director_status(profile_id, action):
+    _, actor_profile, error_response = _require_super_admin()
+    if error_response:
+        return error_response
+
+    normalized_action = str(action or '').strip().lower()
+    if normalized_action not in ['approve', 'reject']:
+        return jsonify({'error': 'Accion invalida.'}), 400
+
+    target = _fetch_profile(profile_id)
+    if not target or target.get('role') != 'admin':
+        return jsonify({'error': 'No se encontro la solicitud de direccion.'}), 404
+
+    auth_user = None
+    try:
+        auth_user = _fetch_auth_user(profile_id)
+    except Exception:
+        auth_user = None
+
+    school_id = _resolve_school_id_for_profile(target, auth_user)
+    school = _fetch_school(school_id)
+    note = str((request.get_json() or {}).get('note') or '').strip()
+
+    update_payload = _filter_profile_payload({
+        'approval_status': 'approved' if normalized_action == 'approve' else 'rejected',
+        'approved_by': actor_profile.get('id'),
+        'approved_at': _utcnow() if normalized_action == 'approve' else None,
+        'approval_note': note or None,
+    })
+
+    try:
+        if update_payload:
+            supabase.table('profiles').update(update_payload).eq('id', profile_id).execute()
+        _update_auth_metadata(profile_id, {
+            'full_name': target.get('full_name'),
+            'role': 'admin',
+            'school_id': school_id,
+            'approval_status': 'approved' if normalized_action == 'approve' else 'rejected',
+        })
+
+        if school and normalized_action == 'approve':
+            supabase.table('schools').update({
+                'director': target.get('full_name') or school.get('director'),
+            }).eq('id', school['id']).execute()
+
+        try:
+            send_direct_email(
+                target['email'],
+                f'Solicitud de direccion {"aprobada" if normalized_action == "approve" else "rechazada"}',
+                [
+                    f'Hola {target.get("full_name") or "usuario"},',
+                    '',
+                    f'Tu solicitud para dirigir el centro "{school.get("nombre") if school else "tu centro"}" fue {"aprobada" if normalized_action == "approve" else "rechazada"}.',
+                    note or '',
+                    '',
+                    'Puedes iniciar sesion en QHere para continuar.' if normalized_action == 'approve' else 'Si necesitas mas informacion, responde a administracion.',
+                ],
+            )
+        except Exception:
+            pass
+
+        return jsonify({
+            'message': 'Estado actualizado correctamente.',
+            'profile_id': profile_id,
+            'approval_status': update_payload.get('approval_status', 'approved' if normalized_action == 'approve' else 'rejected'),
+        }), 200
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400

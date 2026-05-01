@@ -1,0 +1,45 @@
+﻿# Entornos y secretos
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+
+# Dependencias
+node_modules/
+frontend/node_modules/
+venv/
+.venv/
+backend/venv/
+backend/.venv/
+
+# Builds y cache
+dist/
+frontend/dist/
+.vite/
+frontend/.vite/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+frontend/vite*.log
+
+# Sistema / editor
+desktop.ini
+.DS_Store
+.vscode/
+
+# Entrega generada y capturas temporales
+ENTREGA_QHERE_FINAL_*/
+ENTREGA_QHERE_FINAL_*.zip
+entrega_assets/
+frontend/design-check/
+
+# Archivos locales grandes o temporales
+*.tmp
+*.bak

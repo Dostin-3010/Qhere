@@ -1,0 +1,271 @@
+# 🚀 Guía de Inicio Rápido - QHERE
+## Sistema de Control de Asistencia Escolar con Código QR
+### Centro Educativo Politécnico Santa Ana — República Dominicana
+
+---
+
+## Configuración Inicial
+
+### 1. Clonar el Proyecto
+
+```powershell
+cd "C:\Users\duspo\OneDrive\Documentos"
+# El proyecto ya está en:
+cd qhere
+```
+
+Estructura del proyecto:
+```
+qhere/
+├── frontend/    ← React 19 + Vite
+└── backend/     ← Flask Python 3.13
+```
+
+---
+
+### 2. Configurar el Frontend
+
+```powershell
+cd "C:\Users\duspo\OneDrive\Documentos\qhere\frontend"
+
+# Instalar dependencias
+npm install
+
+# Instalar librerías adicionales requeridas
+npm install html5-qrcode
+npm install qrcode.react
+npm install xlsx
+npm install jspdf jspdf-autotable
+
+# Verificar el archivo .env (ya debe existir con las credenciales)
+# Si no existe, crearlo con:
+```
+
+Contenido del archivo `.env`:
+```env
+VITE_SUPABASE_URL=https://qhzucggeafgkmdgbgtoh.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_DSK7AlLvXapCtoOCRadYNQ_3PoH18U2
+```
+
+```powershell
+# Iniciar servidor de desarrollo
+npm run dev
+```
+
+El frontend estará disponible en: **http://localhost:5173**
+
+---
+
+### 3. Configurar el Backend
+
+```powershell
+cd "C:\Users\duspo\OneDrive\Documentos\qhere\backend"
+
+# Crear entorno virtual
+python -m venv venv
+
+# Activar entorno virtual (Windows)
+venv\Scripts\activate
+
+# Instalar dependencias
+pip install flask flask-cors supabase python-dotenv
+
+# Iniciar servidor
+python run.py
+```
+
+El backend estará disponible en: **http://localhost:5000**
+
+---
+
+### 4. Correr el proyecto completo
+
+Abre **dos terminales** en PowerShell:
+
+**Terminal 1 — Frontend:**
+```powershell
+cd "C:\Users\duspo\OneDrive\Documentos\qhere\frontend"
+npm run dev
+```
+
+**Terminal 2 — Backend:**
+```powershell
+cd "C:\Users\duspo\OneDrive\Documentos\qhere\backend"
+venv\Scripts\activate
+python run.py
+```
+
+---
+
+### 5. Verificar que todo funciona
+
+1. Abre **http://localhost:5173** en tu navegador
+2. Deberías ver la página de inicio de QHERE
+3. Inicia sesión con el usuario administrador:
+   - **Email:** duspolsyttt@gmail.com
+   - **Contraseña:** 198915@polanco
+4. El backend debe responder en **http://localhost:5000**
+
+---
+
+## Credenciales del Sistema
+
+| Rol | Email | Contraseña |
+|---|---|---|
+| Administrador | duspolsyttt@gmail.com | 198915@polanco |
+| Docente | (creado desde /admin/teachers) | (generada automáticamente) |
+| Padre/Tutor | (creado desde /admin/parents) | (generada automáticamente) |
+
+---
+
+## Rutas Principales
+
+| Ruta | Descripción |
+|---|---|
+| `/` | Homepage pública |
+| `/login` | Inicio de sesión |
+| `/admin/dashboard` | Panel del administrador |
+| `/admin/students` | Gestión de estudiantes y QR |
+| `/admin/teachers` | Gestión de docentes |
+| `/admin/parents` | Gestión de padres/tutores |
+| `/admin/excuses` | Vista de todas las excusas |
+| `/admin/setup` | Configuración del centro |
+| `/teacher/dashboard` | Escaneo QR y asistencia |
+| `/teacher/inbox` | Bandeja de excusas del docente |
+| `/teacher/absences` | Reportes y exportación |
+| `/parent/dashboard` | Panel del padre/tutor |
+| `/parent/send-excuse` | Enviar excusa con evidencia |
+| `/parent/history` | Historial de excusas |
+
+---
+
+## Base de Datos — Supabase
+
+- **Project ID:** qhzucggeafgkmdgbgtoh
+- **URL:** https://qhzucggeafgkmdgbgtoh.supabase.co
+- **Dashboard:** https://supabase.com/dashboard/project/qhzucggeafgkmdgbgtoh
+
+### Tablas del sistema
+
+| Tabla | Descripción |
+|---|---|
+| `profiles` | Usuarios (admin, teacher, parent) |
+| `schools` | Datos del centro educativo |
+| `grade_sections` | Grados y secciones |
+| `schedules` | Horarios por turno |
+| `school_calendar` | Calendario escolar |
+| `students` | Estudiantes registrados |
+| `attendance` | Registros de asistencia |
+| `parents` | Vínculo padre-estudiante |
+| `excuses` | Justificaciones de ausencias |
+| `audit_log` | Bitácora de auditoría |
+
+---
+
+## Próximos Pasos
+
+### ✅ Completados
+- [x] Configuración del centro educativo (SchoolSetup)
+- [x] Gestión de estudiantes con generación de QR
+- [x] Gestión de docentes con permisos
+- [x] Gestión de padres/tutores con vinculación
+- [x] Panel de escaneo QR del docente
+- [x] Registro de entrada y salida automático
+- [x] Detección automática de tardanzas
+- [x] Asistencia manual de contingencia
+- [x] Sistema de excusas con evidencia (padre)
+- [x] Bandeja de excusas del docente
+- [x] Panel del padre con calendario de asistencia
+- [x] Historial de excusas del padre
+- [x] Reporte de ausencias con exportación Excel/PDF
+- [x] Panel administrativo con estadísticas
+- [x] Vista de excusas para el admin
+- [x] Bitácora de auditoría
+- [x] Control de duplicidad de escaneos
+- [x] Seguridad por roles
+
+### 🔄 Pendientes
+- [ ] Alertas por correo a tutores (Edge Function Resend)
+- [ ] Geolocalización opcional
+- [ ] Control de dispositivos autorizados
+- [ ] Integración con calificaciones
+
+---
+
+## Comandos Útiles
+
+### Frontend
+```powershell
+npm run dev          # Servidor de desarrollo
+npm run build        # Build para producción
+npm run preview      # Preview del build
+
+# Si la caché de Vite da problemas:
+Remove-Item -Recurse -Force node_modules\.vite
+npm run dev
+```
+
+### Backend
+```powershell
+python run.py                  # Iniciar servidor
+venv\Scripts\activate          # Activar entorno virtual
+pip install -r requirements.txt  # Instalar dependencias
+```
+
+---
+
+## Solución de Problemas
+
+| Problema | Solución |
+|---|---|
+| Caché de Vite muestra versión antigua | `Remove-Item -Recurse -Force node_modules\.vite` luego `npm run dev` |
+| "infinite recursion in policy for profiles" | `ALTER TABLE profiles DISABLE ROW LEVEL SECURITY` |
+| Error 500 al cargar perfil | El usuario no tiene fila en `profiles`. Hacer INSERT manual |
+| "No routes matched location" | La ruta no está en `App.jsx`. Agregar import y `<Route>` |
+| Puerto 5174 en vez de 5173 | `Stop-Process -Name "node" -Force` luego `npm run dev` |
+| El QR no se lee | Verificar formato `QHERE:{id}:{matricula}` en ManageStudents |
+| Las excusas no aparecen | Verificar nombres de columnas: `estado`, `fecha_ausencia`, `motivo` |
+
+---
+
+## Tecnologías Utilizadas
+
+| Tecnología | Versión | Uso |
+|---|---|---|
+| React | 19.x | Framework frontend |
+| Vite | 7.x | Bundler y servidor de desarrollo |
+| Tailwind CSS | 4.x | Estilos (pantalla de carga) |
+| Flask | 3.x | Framework backend |
+| Python | 3.13 | Lenguaje del backend |
+| Supabase | Cloud | Base de datos, Auth y Storage |
+| html5-qrcode | 2.x | Escaneo QR con cámara |
+| xlsx | 0.18.x | Exportación Excel |
+| jsPDF | 2.x | Exportación PDF |
+
+---
+
+## Recursos
+
+- [Documentación de React](https://react.dev)
+- [Documentación de Flask](https://flask.palletsprojects.com)
+- [Documentación de Supabase](https://supabase.com/docs)
+- [Dashboard de Supabase - QHERE](https://supabase.com/dashboard/project/qhzucggeafgkmdgbgtoh)
+
+---
+
+*Desarrollado por José Luis Rijo — Centro Educativo Politécnico Santa Ana 🎓*
+
+
+
+
+
+
+cd C:\proyectos\qhere\frontend
+npm run dev
+
+cd C:\Users\duspo\OneDrive\Documentos\qhere\backend
+python run.py
+
+
+cd "C:\Users\duspo\OneDrive\Documentos\qhere\frontend"
+& "C:\Program Files\nodejs\npm.cmd" run dev -- --host localhost --port 5173 --force
