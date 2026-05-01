@@ -11,7 +11,13 @@ import { supabase } from '../../lib/supabase'
 import AdminSidebarProfileCard from '../../components/layout/AdminSidebarProfileCard'
 import BrandLogo from '../../components/ui/BrandLogo'
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '')
+const API_BASE_URL = (() => {
+  const base = (import.meta.env.VITE_API_URL || 'http://localhost:5000')
+    .replace(/\/$/, '')
+    .replace(/\/api$/, '')
+
+  return `${base}/api`
+})()
 
 // ─── Paleta ─────────────────────────────────────────────────
 const C = {
