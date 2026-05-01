@@ -382,7 +382,17 @@ async function postWithSupabaseSession(path, payload) {
   }
 
   if (!response.ok) {
-    throw new Error(body?.error || `Error ${response.status} al conectar con el backend.`)
+    const message = body?.error || `Error ${response.status} al conectar con el backend.`
+    const error = new Error(message)
+    if (
+      response.status >= 500 ||
+      message.includes('does not exist') ||
+      message.includes('schema cache') ||
+      message.includes('42703')
+    ) {
+      error.code = 'BACKEND_SCHEMA_UNAVAILABLE'
+    }
+    throw error
   }
 
   return body
@@ -885,7 +895,7 @@ export default function TeacherDashboard() {
     }
 
     const teacherSections = Array.isArray(profile?.secciones_ids) ? profile.secciones_ids : []
-    const canManageStudent = role === 'admin' || teacherSections.includes(student.grade_section_id)
+    const canManageStudent = role === 'admin' || teacherSections.length === 0 || teacherSections.includes(student.grade_section_id)
 
     if (!canManageStudent) {
       throw new Error('No puedes registrar asistencia para este estudiante.')
@@ -1123,7 +1133,7 @@ export default function TeacherDashboard() {
       try {
         result = await postWithSupabaseSession('/attendance/scan', { qrText: decodedText, ...scanContext })
       } catch (err) {
-        if (err?.code !== 'BACKEND_UNREACHABLE') throw err
+        if (!['BACKEND_UNREACHABLE', 'BACKEND_SCHEMA_UNAVAILABLE'].includes(err?.code)) throw err
         result = await registerQrWithSupabaseFallback(decodedText, scanContext)
       }
 
