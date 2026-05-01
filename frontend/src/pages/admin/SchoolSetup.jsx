@@ -2333,7 +2333,7 @@ export default function SchoolSetup() {
     }
 
     for (const section of secciones) {
-      const payload = {
+      const fullPayload = {
         school_id: currentSchoolId,
         grado: section.grado,
         seccion: section.seccion,
@@ -2344,19 +2344,26 @@ export default function SchoolSetup() {
         hora_limite_tardanza_especial: section.special_schedule_enabled ? section.hora_limite_tardanza_especial || null : null,
       }
 
+      const compatiblePayload = {
+        school_id: currentSchoolId,
+        grado: section.grado,
+        seccion: section.seccion,
+        turno: section.turno,
+      }
+
       if (typeof section.id === 'string' && persistedIds.has(section.id)) {
-        const { error: updateError } = await supabase
-          .from('grade_sections')
-          .update(payload)
-          .eq('id', section.id)
-
-        if (updateError) throw updateError
+        await saveGradeSectionRow({
+          mode: 'update',
+          id: section.id,
+          fullPayload,
+          compatiblePayload,
+        })
       } else {
-        const { error: insertError } = await supabase
-          .from('grade_sections')
-          .insert(payload)
-
-        if (insertError) throw insertError
+        await saveGradeSectionRow({
+          mode: 'insert',
+          fullPayload,
+          compatiblePayload,
+        })
       }
     }
   }
@@ -2420,6 +2427,30 @@ export default function SchoolSetup() {
       || message.includes('could not find')
       || message.includes('column')
     )
+  }
+
+  async function saveGradeSectionRow({ mode, id, fullPayload, compatiblePayload }) {
+    const run = payload => {
+      const query = mode === 'update'
+        ? supabase.from('grade_sections').update(payload).eq('id', id)
+        : supabase.from('grade_sections').insert(payload)
+
+      return query
+    }
+
+    const { error: fullError } = await run(fullPayload)
+
+    if (!fullError) return
+
+    if (!isSchemaCacheColumnError(fullError)) {
+      throw fullError
+    }
+
+    // Compatibilidad con bases antiguas: si aun no existen columnas de horario
+    // especial, el curso/seccion se guarda con los campos esenciales.
+    const { error: compatibleError } = await run(compatiblePayload)
+
+    if (compatibleError) throw compatibleError
   }
 
   async function saveSchoolMetadata(currentSchoolId) {
