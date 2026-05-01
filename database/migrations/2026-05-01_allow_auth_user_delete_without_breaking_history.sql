@@ -27,7 +27,7 @@ begin
     alter table public.attendance
       alter column teacher_id drop not null,
       add constraint attendance_teacher_id_fkey
-        foreign key (teacher_id) REFERENCES%profiles(id) on delete set null;
+        foreign key (teacher_id) references public.profiles(id) on delete set null;
   end if;
 
   -- excuses: conservar excusas aunque se borre el padre/docente.
@@ -54,11 +54,11 @@ begin
       alter column teacher_id drop not null,
       alter column reviewed_by drop not null,
       add constraint excuses_parent_id_fkey
-        foreign key (parent_id) REFERENCES%profiles(id) on delete set null,
+        foreign key (parent_id) references public.profiles(id) on delete set null,
       add constraint excuses_teacher_id_fkey
-        foreign key (teacher_id) REFERENCES%profiles(id) on delete set null,
+        foreign key (teacher_id) references public.profiles(id) on delete set null,
       add constraint excuses_reviewed_by_fkey
-        foreign key (reviewed_by) REFERENCES%profiles(id) on delete set null;
+        foreign key (reviewed_by) references public.profiles(id) on delete set null;
   end if;
 
   -- notifications.teacher_id: conservar notificaciones internas ya emitidas.
@@ -79,7 +79,7 @@ begin
     alter table public.notifications
       alter column teacher_id drop not null,
       add constraint notifications_teacher_id_fkey
-        foreign key (teacher_id) REFERENCES%profiles(id) on delete set null;
+        foreign key (teacher_id) references public.profiles(id) on delete set null;
   end if;
 
   -- audit_log.user_id: conservar auditoria sin usuario activo.
@@ -100,7 +100,7 @@ begin
     alter table public.audit_log
       alter column user_id drop not null,
       add constraint audit_log_user_id_fkey
-        foreign key (user_id) REFERENCES%profiles(id) on delete set null;
+        foreign key (user_id) references public.profiles(id) on delete set null;
   end if;
 
   -- attendance_geo_events.recorded_by: conservar evidencia de ubicacion.
@@ -121,7 +121,7 @@ begin
     alter table public.attendance_geo_events
       alter column recorded_by drop not null,
       add constraint attendance_geo_events_recorded_by_fkey
-        foreign key (recorded_by) REFERENCES%profiles(id) on delete set null;
+        foreign key (recorded_by) references public.profiles(id) on delete set null;
   end if;
 
   -- gradebook_entries.teacher_id: conservar calificaciones.
@@ -142,7 +142,7 @@ begin
     alter table public.gradebook_entries
       alter column teacher_id drop not null,
       add constraint gradebook_entries_teacher_id_fkey
-        foreign key (teacher_id) REFERENCES%profiles(id) on delete set null;
+        foreign key (teacher_id) references public.profiles(id) on delete set null;
   end if;
 
   -- notification_queue.recipient_id: conservar cola/historial sin bloquear auth delete.
@@ -163,7 +163,7 @@ begin
     alter table public.notification_queue
       alter column recipient_id drop not null,
       add constraint notification_queue_recipient_id_fkey
-        foreign key (recipient_id) REFERENCES%profiles(id) on delete set null;
+        foreign key (recipient_id) references public.profiles(id) on delete set null;
   end if;
 
   -- profiles.approved_by: self-reference segura.
@@ -184,7 +184,7 @@ begin
     alter table public.profiles
       alter column approved_by drop not null,
       add constraint profiles_approved_by_fkey
-        foreign key (approved_by) REFERENCES%profiles(id) on delete set null;
+        foreign key (approved_by) references public.profiles(id) on delete set null;
   end if;
 
   -- parents y student_teachers son tablas de vinculo: pueden desaparecer con el usuario.
@@ -204,7 +204,7 @@ begin
 
     alter table public.parents
       add constraint parents_profile_id_fkey
-        foreign key (profile_id) REFERENCES%profiles(id) on delete cascade;
+        foreign key (profile_id) references public.profiles(id) on delete cascade;
   end if;
 
   if to_regclass('public.student_teachers') is not null and exists (
@@ -223,7 +223,7 @@ begin
 
     alter table public.student_teachers
       add constraint student_teachers_teacher_id_fkey
-        foreign key (teacher_id) REFERENCES%profiles(id) on delete cascade;
+        foreign key (teacher_id) references public.profiles(id) on delete cascade;
   end if;
 end
 $$;
