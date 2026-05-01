@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import math
+import re
 
 from flask import Blueprint, jsonify, request
 
@@ -41,6 +42,10 @@ PROFILE_OPTIONAL_FIELDS = ['school_id', 'phone', 'secciones_ids', 'margen_tardan
 
 def _missing_column_name(error):
     message = str(error)
+    match = re.search(r"column\s+(?:profiles|students|grade_sections)(?:_\d+)?\.([a-zA-Z0-9_]+)\s+does not exist", message)
+    if match:
+        return match.group(1)
+
     markers = [
         'column profiles.',
         'column students.',
