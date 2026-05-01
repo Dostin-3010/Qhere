@@ -509,7 +509,7 @@ npm run lint
 
 ## Autor del Desarrollo
 
-**Jose Luis Polanco**
+**Dustin Polanco**
 
 Responsable del desarrollo frontend, backend, base de datos, documentacion tecnica y preparacion de entrega del proyecto QHere.
 
