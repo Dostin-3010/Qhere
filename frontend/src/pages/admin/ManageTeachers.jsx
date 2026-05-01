@@ -170,6 +170,14 @@ const styles = `
   .mt-btn-cancel:hover { border-color: #1B3F6B; color: #1B3F6B; }
   .mt-btn-danger { background: #ef4444; color: #fff; border: none; border-radius: 10px; padding: 10px 20px; font-size: 14px; font-weight: 600; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: background 0.2s; }
   .mt-btn-danger:hover { background: #dc2626; }
+  .mt-btn-ghost { background: #fff; color: #1B3F6B; border: 1.5px solid #C8DFF0; border-radius: 10px; padding: 10px 18px; font-size: 14px; font-weight: 700; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.2s; }
+  .mt-btn-ghost:hover { background: #EEF6FB; border-color: #1B3F6B; }
+  .mt-credential-card { border: 1px solid #C8DFF0; border-radius: 16px; background: linear-gradient(180deg, #F5FAFD, #FFFFFF); padding: 16px; display: grid; gap: 12px; }
+  .mt-credential-row { display: grid; gap: 5px; }
+  .mt-credential-label { font-size: 10px; font-weight: 800; color: #4A6A8A; text-transform: uppercase; letter-spacing: .09em; }
+  .mt-credential-value { padding: 12px 14px; border-radius: 12px; background: #102847; color: #fff; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 15px; font-weight: 800; letter-spacing: .04em; word-break: break-all; }
+  .mt-credential-value.email { background: #EEF6FB; color: #102847; font-family: 'DM Sans', sans-serif; font-weight: 700; letter-spacing: 0; }
+  .mt-credential-note { color: #4A6A8A; font-size: 12px; line-height: 1.5; margin: 0; }
 
   .mt-loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: #8BBAD8; font-size: 14px; gap: 8px; }
   @keyframes mtSpin { to { transform: rotate(360deg); } }
@@ -430,6 +438,8 @@ export default function ManageTeachers() {
   const [showForm, setShowForm]       = useState(false)
   const [editTeacher, setEditTeacher] = useState(null)
   const [deleteTeacher, setDeleteTeacher] = useState(null)
+  const [createdTeacherAccess, setCreatedTeacherAccess] = useState(null)
+  const [copiedAccess, setCopiedAccess] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -497,7 +507,12 @@ export default function ManageTeachers() {
           secciones_ids: form.secciones_ids,
           margen_tardanza_minutos: Number(form.margen_tardanza_minutos) || 30,
         })
-        alert(`Docente creado. Contrasena temporal: ${response.generated_password}\nEl docente debe cambiarla al iniciar sesion.`)
+        setCopiedAccess(false)
+        setCreatedTeacherAccess({
+          name: form.full_name,
+          email: form.email,
+          password: response.generated_password,
+        })
         setShowForm(false)
         setEditTeacher(null)
         await loadData()
@@ -520,6 +535,17 @@ export default function ManageTeachers() {
   }
 
   const handleSignOut = async () => { await signOut(); navigate('/') }
+
+  const copyCreatedAccess = async () => {
+    if (!createdTeacherAccess?.password) return
+    const text = `Docente: ${createdTeacherAccess.name}\nCorreo: ${createdTeacherAccess.email}\nContrasena temporal: ${createdTeacherAccess.password}`
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedAccess(true)
+    } catch {
+      setCopiedAccess(false)
+    }
+  }
 
   const filtered = teachers.filter(t => {
     const matchSearch = !search ||
@@ -693,6 +719,44 @@ export default function ManageTeachers() {
               <div className="mt-modal-footer">
                 <button className="mt-btn-cancel" onClick={() => setDeleteTeacher(null)}>Cancelar</button>
                 <button className="mt-btn-danger" onClick={handleDelete}>Si, eliminar</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {createdTeacherAccess && (
+          <div className="mt-modal-overlay" onClick={() => setCreatedTeacherAccess(null)}>
+            <div className="mt-modal" style={{maxWidth:460}} onClick={e => e.stopPropagation()}>
+              <div className="mt-modal-header">
+                <div className="mt-modal-title">Acceso del docente creado</div>
+                <button type="button" aria-label="Cerrar modal" className="mt-modal-close" onClick={() => setCreatedTeacherAccess(null)}>x</button>
+              </div>
+              <div className="mt-modal-body">
+                <p className="mt-credential-note">
+                  Guarda o comparte estas credenciales con el docente. Esta contrasena temporal debe cambiarse al iniciar sesion.
+                </p>
+                <div className="mt-credential-card" style={{marginTop:14}}>
+                  <div className="mt-credential-row">
+                    <span className="mt-credential-label">Docente</span>
+                    <div className="mt-credential-value email">{createdTeacherAccess.name}</div>
+                  </div>
+                  <div className="mt-credential-row">
+                    <span className="mt-credential-label">Correo de acceso</span>
+                    <div className="mt-credential-value email">{createdTeacherAccess.email}</div>
+                  </div>
+                  <div className="mt-credential-row">
+                    <span className="mt-credential-label">Contrasena temporal</span>
+                    <div className="mt-credential-value">{createdTeacherAccess.password}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-modal-footer">
+                <button className="mt-btn-ghost" onClick={copyCreatedAccess}>
+                  {copiedAccess ? 'Copiado' : 'Copiar acceso'}
+                </button>
+                <button className="mt-btn-primary" onClick={() => setCreatedTeacherAccess(null)}>
+                  Entendido
+                </button>
               </div>
             </div>
           </div>
