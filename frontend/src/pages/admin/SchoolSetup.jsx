@@ -2412,6 +2412,60 @@ export default function SchoolSetup() {
     if (insertError) throw insertError
   }
 
+  function isSchemaCacheColumnError(error) {
+    const message = String(error?.message || '').toLowerCase()
+    return (
+      error?.code === 'PGRST204'
+      || message.includes('schema cache')
+      || message.includes('could not find')
+      || message.includes('column')
+    )
+  }
+
+  async function saveSchoolMetadata(currentSchoolId) {
+    const fullPayload = {
+      nombre: schoolData.nombre,
+      direccion: schoolData.direccion,
+      telefono: schoolData.telefono,
+      email: schoolData.email,
+      director: schoolData.director,
+      academic_period_start: schoolData.academic_period_start || null,
+      academic_period_end: schoolData.academic_period_end || null,
+      latitude: schoolData.latitude === '' ? null : Number(schoolData.latitude),
+      longitude: schoolData.longitude === '' ? null : Number(schoolData.longitude),
+      allowed_radius_m: schoolData.allowed_radius_m === '' ? null : Number(schoolData.allowed_radius_m),
+      configurado: true,
+    }
+
+    const { error: fullUpdateError } = await supabase
+      .from('schools')
+      .update(fullPayload)
+      .eq('id', currentSchoolId)
+
+    if (!fullUpdateError) return
+
+    if (!isSchemaCacheColumnError(fullUpdateError)) {
+      throw fullUpdateError
+    }
+
+    // Compatibilidad con bases antiguas: no bloquear cursos por columnas nuevas
+    // que aun no existen o no han refrescado en el schema cache de Supabase.
+    const compatiblePayload = {
+      nombre: schoolData.nombre,
+      direccion: schoolData.direccion,
+      telefono: schoolData.telefono,
+      email: schoolData.email,
+      director: schoolData.director,
+    }
+
+    const { error: compatibleUpdateError } = await supabase
+      .from('schools')
+      .update(compatiblePayload)
+      .eq('id', currentSchoolId)
+
+    if (compatibleUpdateError) throw compatibleUpdateError
+  }
+
   const handleFinish = async () => {
     setLoading(true)
     setSuccess(false)
@@ -2422,26 +2476,7 @@ export default function SchoolSetup() {
         throw new Error('No tienes un centro educativo asignado para configurar.')
       }
 
-      if (currentSchoolId) {
-        const { error: updateError } = await supabase
-          .from('schools')
-          .update({
-            nombre: schoolData.nombre,
-            direccion: schoolData.direccion,
-            telefono: schoolData.telefono,
-            email: schoolData.email,
-            director: schoolData.director,
-            academic_period_start: schoolData.academic_period_start || null,
-            academic_period_end: schoolData.academic_period_end || null,
-            latitude: schoolData.latitude === '' ? null : Number(schoolData.latitude),
-            longitude: schoolData.longitude === '' ? null : Number(schoolData.longitude),
-            allowed_radius_m: schoolData.allowed_radius_m === '' ? null : Number(schoolData.allowed_radius_m),
-            configurado: true,
-          })
-          .eq('id', currentSchoolId)
-
-        if (updateError) throw updateError
-      }
+      await saveSchoolMetadata(currentSchoolId)
 
       await saveSections(currentSchoolId)
       await saveSchedules(currentSchoolId)
