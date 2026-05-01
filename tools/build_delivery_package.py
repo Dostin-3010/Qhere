@@ -57,7 +57,7 @@ Incluido:
 [OK] Acta de proyecto.
 [OK] Manual tecnico.
 [OK] Manual de usuario.
-[OK] Cronograma de actividades.
+[OK] Cronograma de actividades en Markdown y Excel.
 [OK] Analisis y diseno del sistema.
 [OK] Trazabilidad RF-01 a RF-25.
 [OK] Presentacion tipo propuesta en Markdown y PDF.
@@ -109,6 +109,8 @@ def main():
     copy_file(ROOT / "README.md", docs / "README.md")
     for md in (ROOT / "docs").glob("*.md"):
         copy_file(md, docs / md.name)
+    for xlsx in (ROOT / "docs").glob("*.xlsx"):
+        copy_file(xlsx, docs / xlsx.name)
     copy_dir(ROOT / "docs" / "pdf", docs / "PDF")
 
     copy_dir(ROOT / "entrega_assets" / "capturas_png", captures / "PNG")
