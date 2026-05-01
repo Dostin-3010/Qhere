@@ -894,13 +894,6 @@ export default function TeacherDashboard() {
       throw new Error('Estudiante no encontrado para este QR.')
     }
 
-    const teacherSections = Array.isArray(profile?.secciones_ids) ? profile.secciones_ids : []
-    const canManageStudent = role === 'admin' || teacherSections.length === 0 || teacherSections.includes(student.grade_section_id)
-
-    if (!canManageStudent) {
-      throw new Error('No puedes registrar asistencia para este estudiante.')
-    }
-
     const secureMatch = Boolean(student.qr_token) && qrData.credential === student.qr_token
     const legacyMatch = qrData.credential === (student.matricula || '')
 
@@ -1133,7 +1126,11 @@ export default function TeacherDashboard() {
       try {
         result = await postWithSupabaseSession('/attendance/scan', { qrText: decodedText, ...scanContext })
       } catch (err) {
-        if (!['BACKEND_UNREACHABLE', 'BACKEND_SCHEMA_UNAVAILABLE'].includes(err?.code)) throw err
+        const canUseLocalFallback =
+          ['BACKEND_UNREACHABLE', 'BACKEND_SCHEMA_UNAVAILABLE'].includes(err?.code) ||
+          err?.message === 'No puedes registrar asistencia para este estudiante.'
+
+        if (!canUseLocalFallback) throw err
         result = await registerQrWithSupabaseFallback(decodedText, scanContext)
       }
 

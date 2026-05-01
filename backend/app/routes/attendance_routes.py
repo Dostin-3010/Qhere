@@ -343,22 +343,10 @@ def _build_scan_meta(
 
 def _can_manage_student(profile, student):
     role = (profile.get('role') or '').strip().lower()
-    if role == 'admin':
+    if role in ['admin', 'teacher']:
         return True
 
-    if role != 'teacher':
-        return False
-
-    profile_school_id = profile.get('school_id')
-    student_school_id = student.get('school_id')
-    if profile_school_id and student_school_id and profile_school_id == student_school_id:
-        return True
-
-    section_ids = profile.get('secciones_ids') or []
-    if not section_ids:
-        return True
-
-    return student.get('grade_section_id') in section_ids
+    return False
 
 
 def _student_select_fields():
