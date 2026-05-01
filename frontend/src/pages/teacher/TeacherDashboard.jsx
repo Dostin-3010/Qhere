@@ -175,8 +175,23 @@ const STYLES = `
 
   /* Visor QR */
   .td-qr-viewport {
-    width:100%; aspect-ratio:1; background:${C.dark}; border-radius:10px;
+    width:100%; aspect-ratio:1;
+    background:
+      radial-gradient(circle at 50% 44%, rgba(232,33,39,.16), transparent 28%),
+      linear-gradient(145deg, #101010, #191919 52%, #0b0b0b);
+    border:1px solid rgba(17,17,17,.18);
+    border-radius:18px;
     display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 22px 48px rgba(17,17,17,.18);
+  }
+  .td-qr-viewport::before {
+    content:''; position:absolute; inset:18px; border-radius:14px;
+    border:1px solid rgba(255,255,255,.14); pointer-events:none; z-index:1;
+  }
+  .td-qr-viewport::after {
+    content:''; position:absolute; width:58%; height:2px; left:21%; top:50%;
+    background:linear-gradient(90deg, transparent, #E82127, transparent);
+    box-shadow:0 0 18px rgba(232,33,39,.75); pointer-events:none; z-index:2;
   }
   #td-qr-reader {
     width:100% !important; height:100% !important; min-height:320px;
@@ -188,12 +203,12 @@ const STYLES = `
   }
   #td-qr-reader video {
     width:100% !important; height:100% !important; display:block !important;
-    object-fit:cover !important; background:transparent !important; border-radius:10px !important;
+    object-fit:cover !important; background:transparent !important; border-radius:18px !important;
   }
   #td-qr-reader canvas { max-width:100%; max-height:100%; }
   #td-qr-reader img { display:none !important; }
-  .td-qr-placeholder { text-align:center; color:${C.skyMid}; }
-  .td-qr-placeholder svg { opacity:0.4; margin-bottom:10px; }
+  .td-qr-placeholder { text-align:center; color:#d6d3d1; position:relative; z-index:3; }
+  .td-qr-placeholder svg { opacity:0.82; margin-bottom:10px; color:#E82127; }
   .td-qr-placeholder p { font-size:13px; }
 
   /* Scanner btn */
@@ -201,15 +216,24 @@ const STYLES = `
     display:inline-flex; align-items:center; gap:8px; padding:10px 20px;
     border-radius:9px; font-size:14px; font-weight:600; cursor:pointer; border:none; transition:all 0.18s;
   }
-  .td-btn-primary { background:${C.navy}; color:#fff; }
-  .td-btn-primary:hover { background:${C.navyMid}; }
+  .td-btn-primary { background:#111111; color:#fff; box-shadow:0 10px 24px rgba(17,17,17,.18); }
+  .td-btn-primary:hover { background:#242424; transform:translateY(-1px); }
   .td-btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
   .td-btn-danger { background:#fff0f0; color:#c0392b; border:1px solid #f5c6c6; }
   .td-btn-danger:hover { background:#ffe0e0; }
-  .td-btn-secondary { background:${C.skyLight}; color:${C.navy}; border:1px solid ${C.border}; }
-  .td-btn-secondary:hover { background:${C.sky}; }
+  .td-btn-secondary { background:#fff; color:#111111; border:1px solid rgba(17,17,17,.16); }
+  .td-btn-secondary:hover { background:#f5f5f4; border-color:#111111; }
   .td-btn-sm { padding:7px 14px; font-size:13px; }
   .td-btn-row { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .td-quick-manual {
+    margin-top:16px; padding:14px; border-radius:14px;
+    border:1px solid rgba(17,17,17,.14); background:#f7f7f5;
+    display:grid; gap:10px;
+  }
+  .td-quick-manual-title { font-size:12px; font-weight:800; color:#111111; letter-spacing:.06em; text-transform:uppercase; }
+  .td-quick-manual-copy { font-size:12px; color:#57534e; line-height:1.45; }
+  .td-quick-manual-grid { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; }
+  .td-quick-manual-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 
   /* Resultado del escaneo */
   .td-scan-result {
@@ -462,6 +486,18 @@ async function canvasToPngFile(canvas, name) {
   return new File([blob], name, { type: 'image/png' })
 }
 
+async function scanCanvasWithBarcodeDetector(canvas) {
+  if (!('BarcodeDetector' in window)) return ''
+
+  try {
+    const detector = new window.BarcodeDetector({ formats: ['qr_code'] })
+    const codes = await detector.detect(canvas)
+    return codes?.[0]?.rawValue || ''
+  } catch {
+    return ''
+  }
+}
+
 function drawImageVariant(image, { crop = null, maxSize = 1800, threshold = false }) {
   const source = crop || { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }
   const scale = Math.min(maxSize / Math.max(source.width, source.height), 4)
@@ -506,7 +542,7 @@ function centerCrop(image, ratio) {
 
 async function buildQrReadableFileVariants(file) {
   const image = await loadImageFromFile(file)
-  const variants = [{ file, label: 'original' }]
+  const variants = [{ file, label: 'original', canvas: drawImageVariant(image, { maxSize: 2200 }) }]
   const configs = [
     { name: 'ampliada', maxSize: 2200 },
     { name: 'alto-contraste', maxSize: 2200, threshold: true },
@@ -517,7 +553,7 @@ async function buildQrReadableFileVariants(file) {
   for (const config of configs) {
     const canvas = drawImageVariant(image, config)
     const variantFile = await canvasToPngFile(canvas, `${file.name}-${config.name}.png`)
-    if (variantFile) variants.push({ file: variantFile, label: config.name })
+    if (variantFile) variants.push({ file: variantFile, label: config.name, canvas })
   }
 
   return variants
@@ -991,7 +1027,10 @@ export default function TeacherDashboard() {
 
       for (const variant of variants) {
         try {
-          decodedText = await html5QrRef.current.scanFile(variant.file, false)
+          decodedText = await scanCanvasWithBarcodeDetector(variant.canvas)
+          if (!decodedText) {
+            decodedText = await html5QrRef.current.scanFile(variant.file, false)
+          }
           break
         } catch (scanError) {
           lastError = scanError
@@ -1399,6 +1438,43 @@ export default function TeacherDashboard() {
                 <div style={{ marginTop: 10, fontSize: 12, color: C.mid }}>
                   Si tu webcam falla, puedes subir una captura o foto del QR para probar el registro.
                 </div>
+
+                <form className="td-quick-manual" onSubmit={handleManual}>
+                  <div>
+                    <div className="td-quick-manual-title">Registro manual rapido</div>
+                    <div className="td-quick-manual-copy">
+                      Si la captura no detecta el QR, registra la asistencia con la matricula del estudiante.
+                    </div>
+                  </div>
+                  <div className="td-quick-manual-grid">
+                    <input
+                      className="td-input"
+                      placeholder="Matricula del estudiante"
+                      value={manualMatricula}
+                      onChange={e => setManualMatricula(e.target.value)}
+                    />
+                    <button className="td-btn td-btn-primary" disabled={manualLoading} type="submit">
+                      {manualLoading ? 'Registrando...' : 'Registrar'}
+                    </button>
+                  </div>
+                  <div className="td-quick-manual-actions">
+                    <select className="td-select" value={manualAction} onChange={e => setManualAction(e.target.value)} style={{ maxWidth: 150 }}>
+                      <option value="check_in">Entrada</option>
+                      <option value="check_out">Salida</option>
+                    </select>
+                    <select
+                      className="td-select"
+                      value={manualEstado}
+                      onChange={e => setManualEstado(e.target.value)}
+                      disabled={manualAction === 'check_out'}
+                      style={{ maxWidth: 150 }}
+                    >
+                      <option value="presente">Presente</option>
+                      <option value="tarde">Tarde</option>
+                      <option value="ausente">Ausente</option>
+                    </select>
+                  </div>
+                </form>
 
                 {scanning && activeCameraLabel && (
                   <div style={{ marginTop: 10, fontSize: 12, color: C.mid }}>
