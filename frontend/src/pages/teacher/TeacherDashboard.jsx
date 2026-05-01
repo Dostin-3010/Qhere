@@ -177,16 +177,18 @@ const STYLES = `
   .td-qr-viewport {
     width:100%; aspect-ratio:1;
     background:
-      radial-gradient(circle at 50% 44%, rgba(232,33,39,.16), transparent 28%),
-      linear-gradient(145deg, #101010, #191919 52%, #0b0b0b);
-    border:1px solid rgba(17,17,17,.18);
+      radial-gradient(circle at 50% 45%, rgba(232,33,39,.12), transparent 25%),
+      radial-gradient(circle at 78% 18%, rgba(255,255,255,.055), transparent 24%),
+      linear-gradient(145deg, #070707 0%, #141414 52%, #0a0a0a 100%) !important;
+    border:1px solid rgba(255,255,255,.12);
     border-radius:18px;
     display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 22px 48px rgba(17,17,17,.18);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.055), 0 22px 48px rgba(17,17,17,.22);
   }
   .td-qr-viewport::before {
     content:''; position:absolute; inset:18px; border-radius:14px;
-    border:1px solid rgba(255,255,255,.14); pointer-events:none; z-index:1;
+    border:1px solid rgba(255,255,255,.13); pointer-events:none; z-index:1;
+    background:linear-gradient(145deg, rgba(255,255,255,.025), rgba(255,255,255,0));
   }
   .td-qr-viewport::after {
     content:''; position:absolute; width:58%; height:2px; left:21%; top:50%;
@@ -196,10 +198,12 @@ const STYLES = `
   #td-qr-reader {
     width:100% !important; height:100% !important; min-height:320px;
     position:relative; display:flex; align-items:center; justify-content:center;
+    background:transparent !important;
   }
   #td-qr-reader > div,
   #td-qr-reader > section {
     width:100% !important; height:100% !important;
+    background:transparent !important;
   }
   #td-qr-reader video {
     width:100% !important; height:100% !important; display:block !important;
@@ -207,7 +211,7 @@ const STYLES = `
   }
   #td-qr-reader canvas { max-width:100%; max-height:100%; }
   #td-qr-reader img { display:none !important; }
-  .td-qr-placeholder { text-align:center; color:#d6d3d1; position:relative; z-index:3; }
+  .td-qr-placeholder { text-align:center; color:#e7e5e4; position:relative; z-index:3; }
   .td-qr-placeholder svg { opacity:0.82; margin-bottom:10px; color:#E82127; }
   .td-qr-placeholder p { font-size:13px; }
 
