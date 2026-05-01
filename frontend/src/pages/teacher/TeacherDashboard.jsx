@@ -340,7 +340,13 @@ const SCHEDULE_FALLBACK = {
   noche:  { hora_entrada: '17:00', hora_salida: '21:00', hora_limite_tardanza: '17:30' },
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '')
+const API_BASE_URL = (() => {
+  const base = (import.meta.env.VITE_API_URL || 'http://localhost:5000')
+    .replace(/\/$/, '')
+    .replace(/\/api$/, '')
+
+  return `${base}/api`
+})()
 
 async function postWithSupabaseSession(path, payload) {
   const { data: { session } } = await supabase.auth.getSession()
