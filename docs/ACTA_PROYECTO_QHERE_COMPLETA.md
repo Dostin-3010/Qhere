@@ -64,29 +64,7 @@ Desarrollar una aplicacion web para administrar y controlar la asistencia escola
 
 ## Alcance del Proyecto
 
-El alcance de QHere cubre los requerimientos funcionales RF-01 al RF-25 definidos para el proyecto, incluyendo:
-
-- Registro de centros educativos.
-- Gestion de estudiantes.
-- Gestion de docentes y roles.
-- Generacion de QR por estudiante.
-- Panel de escaneo.
-- Registro de entrada y salida.
-- Control por turnos y horarios.
-- Justificaciones y aprobacion.
-- Asistencia manual de contingencia.
-- Calculo automatico de tardanzas.
-- Alertas y notificaciones.
-- Reportes administrativos.
-- Exportaciones en PDF y Excel.
-- Control de duplicidad.
-- Geolocalizacion opcional.
-- Control de dispositivos autorizados.
-- Calendario escolar.
-- Relacion con rendimiento o calificaciones como base futura.
-- Dashboard para direccion.
-- Bitacora y auditoria.
-- Seguridad y privacidad por rol.
+El alcance de QHere cubre los requerimientos funcionales RF-01 al RF-25 definidos para el proyecto, incluyendo registro de centros, estudiantes, docentes, tutores, QR, panel de escaneo, entrada, salida, turnos, justificaciones, contingencia manual, tardanzas, alertas, reportes, exportaciones, geolocalizacion opcional, dispositivos autorizados, calendario, dashboard, auditoria y seguridad.
 
 ## Elementos de la Cadena de Valor de la Implementacion
 

@@ -1,44 +1,146 @@
-# QHERE
+# QHere - Sistema de Control de Asistencia Escolar con QR
 
-Sistema web de control de asistencia escolar con QR para centros educativos. El proyecto permite gestionar centros, estudiantes, docentes, padres/tutores, asistencia por escaneo o contingencia manual, justificaciones con evidencia y reportes operativos para direccion.
+## Nombre del Proyecto
 
-## Tecnologias
+**QHere**
 
-- Frontend: React 19 + Vite
-- Backend: Python 3 + Flask
-- Base de datos y auth: Supabase
-- Exportaciones: XLSX + jsPDF
+Sistema de Control de Asistencia Escolar con QR para centros educativos.
 
-Nota de alcance: el enunciado general menciona FastAPI y Odoo, pero esta implementacion final usa Flask + React + Supabase. FastAPI y Odoo no forman parte del codigo productivo entregado.
+## Descripcion del Proyecto
 
-## Caracteristicas principales
+QHere es una aplicacion web desarrollada para automatizar el control de asistencia escolar. El sistema permite registrar centros educativos, estudiantes, docentes, padres o tutores, cursos, grados, secciones, turnos, horarios, entradas, salidas, tardanzas, ausencias, justificaciones y reportes administrativos.
 
-- Autenticacion segura con roles `admin`, `teacher` y `parent`
-- Configuracion de centro educativo, grados, secciones, turnos y calendario
-- Registro de estudiantes con matricula unica y QR regenerable
-- Gestion de docentes con permisos operativos
-- Gestion de padres/tutores y vinculacion con estudiantes
-- Registro de entrada y salida por QR
-- Asistencia manual de contingencia con auditoria
-- Tardanzas automaticas por horario oficial
-- Justificaciones con evidencia y flujo de aprobacion
-- Reportes y exportacion en PDF/Excel
-- Control de dispositivos autorizados
-- Captura opcional de geolocalizacion del escaneo
-- Dashboard administrativo con alertas y bitacora
+La asistencia puede registrarse mediante codigos QR unicos por estudiante o mediante asistencia manual de contingencia. El sistema tambien incluye autenticacion, control de acceso por roles, panel de administrador absoluto, panel de direccion, reportes exportables, auditoria y separacion de datos por centro educativo.
 
-## Requisitos del sistema
+**Nota de alcance:** el enunciado general menciona Python + Flask + FastAPI + React + Supabase + Odoo. La implementacion real de QHere fue desarrollada con **Python Flask + React + Supabase**. FastAPI y Odoo no forman parte del codigo productivo entregado.
 
-- Node.js 20 o superior
-- npm 10 o superior
-- Python 3.11 o superior
-- Proyecto Supabase configurado
+## Tecnologias Utilizadas
 
-## Variables de entorno
+- **Frontend:** React 19, Vite, JavaScript, CSS.
+- **Backend:** Python 3, Flask, Flask-CORS, Flask-JWT-Extended.
+- **Base de datos:** Supabase con PostgreSQL.
+- **Autenticacion:** Supabase Auth y control de roles.
+- **Storage:** Supabase Storage para evidencias de justificaciones.
+- **Realtime:** Supabase Realtime para eventos y actualizaciones.
+- **Edge Function:** Supabase Edge Function para notificaciones de asistencia.
+- **Exportaciones:** jsPDF, jsPDF AutoTable y XLSX.
+- **QR:** html5-qrcode.
+- **Versionamiento:** Git y GitHub.
 
-### Frontend
+## Caracteristicas del Sistema
 
-Archivo `frontend/.env`
+- Registro y administracion de centros educativos.
+- Solicitud de acceso para directores.
+- Aprobacion de directores por administrador absoluto.
+- Seleccion de centro educativo al iniciar sesion.
+- Autenticacion segura con roles.
+- Panel de administrador absoluto.
+- Panel de direccion o administracion del centro.
+- Gestion de estudiantes con matricula unica.
+- Gestion de docentes y usuarios administrativos.
+- Gestion de padres o tutores.
+- Vinculacion entre estudiantes y tutores.
+- Configuracion de cursos, grados, secciones, turnos y horarios.
+- Generacion de QR unico por estudiante.
+- Reemision de QR en caso de perdida.
+- Escaneo QR desde panel web.
+- Registro de entrada y salida.
+- Prevencion de doble registro en el mismo turno.
+- Control de tardanzas automaticas segun horario oficial.
+- Asistencia manual de contingencia auditable.
+- Justificaciones de ausencia o tardanza con evidencia.
+- Aprobacion o rechazo de justificaciones.
+- Alertas y notificaciones administrativas.
+- Reporte diario por aula.
+- Historial por estudiante.
+- Reporte por docente.
+- Exportacion de reportes en PDF y Excel.
+- Control de duplicidad y fraude.
+- Geolocalizacion opcional del escaneo.
+- Control de dispositivos autorizados.
+- Calendario escolar.
+- Dashboard para direccion.
+- Bitacora y auditoria.
+- Seguridad y privacidad por rol.
+- Diseno profesional, moderno y responsive.
+
+## Requisitos del Sistema
+
+Para ejecutar el proyecto localmente se recomienda:
+
+- Windows 10/11, Linux o macOS.
+- Node.js 20 o superior.
+- npm 10 o superior.
+- Python 3.11 o superior.
+- Cuenta o proyecto activo en Supabase.
+- Navegador moderno: Google Chrome, Microsoft Edge o Firefox.
+- Conexion a internet para utilizar Supabase.
+- Git instalado para clonar el repositorio.
+
+## Instalacion del Proyecto
+
+### 1. Clonar el repositorio de GitHub
+
+```bash
+git clone https://github.com/Dostin-3010/Qhere.git
+cd Qhere
+```
+
+Si el repositorio se clona con otro nombre de carpeta, entrar a la carpeta correspondiente antes de continuar.
+
+### 2. Instalar dependencias del frontend
+
+```bash
+cd frontend
+npm install
+```
+
+### 3. Instalar dependencias del backend
+
+Desde la carpeta raiz del proyecto:
+
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+En Linux o macOS:
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Configuracion
+
+### Configuracion de Supabase
+
+1. Crear un proyecto en Supabase.
+2. Ir a **SQL Editor**.
+3. Ejecutar el archivo:
+
+```text
+database/full_supabase_script.sql
+```
+
+4. Confirmar que se creen las tablas, indices, funciones RPC y configuraciones necesarias.
+5. Revisar los archivos complementarios:
+
+```text
+database/schema.sql
+database/rpc_functions.sql
+database/realtime_setup.sql
+database/EDGE_FUNCTION.md
+database/edge-functions/
+```
+
+### Variables de entorno del frontend
+
+Crear el archivo `frontend/.env`:
 
 ```env
 VITE_SUPABASE_URL=https://TU-PROYECTO.supabase.co
@@ -46,9 +148,9 @@ VITE_SUPABASE_ANON_KEY=TU_SUPABASE_ANON_KEY
 VITE_API_URL=http://localhost:5000/api
 ```
 
-### Backend
+### Variables de entorno del backend
 
-Archivo `backend/.env`
+Crear el archivo `backend/.env`:
 
 ```env
 SUPABASE_URL=https://TU-PROYECTO.supabase.co
@@ -56,75 +158,120 @@ SUPABASE_ANON_KEY=TU_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_KEY=TU_SUPABASE_SERVICE_ROLE_KEY
 SECRET_KEY=CAMBIA_ESTA_CLAVE
 FLASK_DEBUG=True
-SMTP_HOST=smtp.tu-proveedor.com
+SMTP_HOST=
 SMTP_PORT=587
-SMTP_USERNAME=usuario
-SMTP_PASSWORD=clave
-SMTP_FROM_EMAIL=notificaciones@tu-centro.edu
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_FROM_EMAIL=
 SMTP_USE_TLS=True
 ```
 
-## Instalacion
+Si no se configura SMTP, las notificaciones pueden gestionarse desde el panel administrativo o mantenerse como registros internos del sistema.
 
-### 1. Clonar el repositorio
+### Configuracion de Google Login Opcional
 
-```bash
-git clone <URL_DEL_REPOSITORIO>
-cd qhere
+Para usar inicio de sesion con Google:
+
+1. Crear credenciales OAuth en Google Cloud Console.
+2. Activar el proveedor Google en Supabase Auth.
+3. Agregar como redirect URL:
+
+```text
+https://TU-PROYECTO.supabase.co/auth/v1/callback
 ```
 
-### 2. Frontend
+4. Agregar como origen autorizado de JavaScript:
 
-```bash
-cd frontend
-npm install
-npm run dev
+```text
+http://localhost:5173
+http://127.0.0.1:5173
 ```
 
-### 3. Backend
+5. Copiar el Client ID y Client Secret de Google en Supabase.
+
+## Paso de Ejecucion del Proyecto Paso a Paso
+
+### 1. Ejecutar el backend
 
 ```bash
 cd backend
-python -m venv venv
 venv\Scripts\activate
-pip install -r requirements.txt
 python run.py
 ```
 
-## Ejecucion paso a paso
+El backend debe iniciar en:
 
-1. Levanta el backend en `http://localhost:5000`.
-2. Levanta el frontend en `http://localhost:5173`.
-3. Configura o restaura la base con `database/schema.sql` y las migraciones.
-4. Ingresa al sistema con un usuario administrador de Supabase Auth que tenga perfil `admin`.
-5. Completa la configuracion del centro en `/admin/setup`.
-6. Registra estudiantes, docentes y padres.
-7. Usa el panel docente para escaneo, asistencia manual y reportes.
+```text
+http://localhost:5000
+```
 
-## Base de datos
+### 2. Ejecutar el frontend
 
-- Script principal: `database/schema.sql`
-- Script completo de entrega: `database/full_supabase_script.sql`
-- RPC: `database/rpc_functions.sql`
-- Realtime: `database/realtime_setup.sql`
-- Edge Function opcional: `database/edge-functions/`
-- Tablas de funcionalidades futuras / opcionales: `database/future_tables.sql`
-- Migraciones: `database/migrations/`
-- Diagrama: `docs/DIAGRAMA_BASE_DATOS.md`
+Abrir otra terminal desde la raiz del proyecto:
 
-## Estructura del proyecto
+```bash
+cd frontend
+npm run dev
+```
+
+El frontend normalmente inicia en:
+
+```text
+http://localhost:5173
+```
+
+Si el puerto esta ocupado, ejecutar:
+
+```bash
+npm run dev -- --host localhost --port 5177 --force
+```
+
+### 3. Abrir la aplicacion
+
+Entrar desde el navegador a:
+
+```text
+http://localhost:5173
+```
+
+o al puerto alternativo indicado por Vite.
+
+### 4. Flujo recomendado de prueba
+
+1. Entrar a la pagina principal.
+2. Solicitar acceso como director.
+3. Iniciar sesion como administrador absoluto.
+4. Aprobar la solicitud del director.
+5. Registrar o asignar el centro educativo.
+6. Iniciar sesion como director.
+7. Elegir el centro educativo.
+8. Configurar cursos, grados, secciones, turnos y horarios.
+9. Registrar estudiantes, docentes y padres/tutores.
+10. Generar o revisar QR de estudiantes.
+11. Probar asistencia por QR o asistencia manual.
+12. Registrar justificaciones.
+13. Revisar reportes y exportaciones.
+
+## Estructura del Proyecto
 
 ```text
 qhere/
 |-- backend/
 |   |-- app/
-|   |   |-- routes/
+|   |   |-- models/
 |   |   |-- repositories/
+|   |   |-- routes/
 |   |   |-- services/
 |   |   |-- utils/
-|   |-- run.py
+|   |   |-- config.py
+|   |   |-- extensions.py
+|   |   |-- supabase_client.py
+|   |-- process_notification_queue.py
 |   |-- requirements.txt
+|   |-- run.py
+|
 |-- frontend/
+|   |-- public/
 |   |-- src/
 |   |   |-- api/
 |   |   |-- components/
@@ -132,61 +279,242 @@ qhere/
 |   |   |-- hooks/
 |   |   |-- lib/
 |   |   |-- pages/
+|   |   |-- utils/
 |   |-- package.json
+|   |-- vite.config.js
+|
 |-- database/
-|   |-- schema.sql
-|   |-- future_tables.sql
+|   |-- edge-functions/
 |   |-- migrations/
+|   |-- EDGE_FUNCTION.md
+|   |-- full_supabase_script.sql
+|   |-- future_tables.sql
+|   |-- realtime_setup.sql
+|   |-- rpc_functions.sql
+|   |-- schema.sql
+|
 |-- docs/
+|   |-- ACTA_PROYECTO.md
+|   |-- ACTA_PROYECTO_QHERE_COMPLETA.md
+|   |-- ANALISIS_Y_DISENO.md
+|   |-- CRONOGRAMA_ACTIVIDADES.md
+|   |-- CRONOGRAMA_ACTIVIDADES_QHERE.xlsx
+|   |-- DIAGRAMA_BASE_DATOS.md
+|   |-- MANUAL_TECNICO.md
+|   |-- MANUAL_USUARIO.md
+|   |-- PRESENTACION_PROPUESTA.md
+|   |-- TRAZABILIDAD_RF.md
+|
+|-- entrega_assets/
+|-- tools/
+|-- README.md
 ```
 
-## Uso del sistema
+## Uso del Sistema
 
-- `Admin`: configura centro, horarios, calendario, estudiantes, docentes, padres, excusas y alertas operativas.
-- `Teacher`: registra asistencia por QR o manual, revisa excusas y consulta reportes.
-- `Parent`: consulta historial y envia justificaciones con evidencia.
+### Administrador absoluto
 
-## API principal
+El administrador absoluto tiene acceso al panel maestro del sistema. Desde este panel puede:
 
-- `POST /api/auth/login`
-- `GET /api/auth/me`
-- `POST /api/auth/register`
-- `POST /api/attendance/scan`
-- `POST /api/attendance/manual`
-- `GET /api/students`
-- `GET /api/teachers`
-- `GET /api/excuses`
-- `POST /api/excuses/upload-evidence`
+- Ver solicitudes de directores.
+- Aprobar o rechazar solicitudes.
+- Registrar centros educativos.
+- Asignar directores a centros.
+- Consultar el estado general de la plataforma.
 
-## Procesamiento de correos
+### Director o administrador del centro
 
-La cola de alertas por correo se procesa con:
+El director gestiona la operacion del centro educativo:
+
+- Configura cursos, grados, secciones, turnos y horarios.
+- Registra estudiantes.
+- Registra docentes.
+- Registra padres o tutores.
+- Revisa asistencia.
+- Aprueba o rechaza justificaciones.
+- Consulta reportes administrativos.
+
+### Docente
+
+El docente puede:
+
+- Escanear QR de estudiantes.
+- Registrar asistencia.
+- Consultar estudiantes asignados.
+- Revisar reportes relacionados con sus grupos.
+- Gestionar justificaciones segun permisos asignados.
+
+### Padre, tutor o estudiante
+
+Segun el acceso habilitado, puede:
+
+- Consultar informacion relacionada con asistencia.
+- Enviar o revisar justificaciones.
+- Ver historial de excusas o incidencias.
+
+## Credenciales Relevantes
+
+Las credenciales finales dependen del proyecto Supabase utilizado para la demostracion. Se recomienda entregar usuarios de prueba con los siguientes roles:
+
+```text
+Administrador absoluto:
+Correo: duspolsyttt@gmail.com
+Rol: super_admin
+
+Director:
+Correo: director.demo@qhere.local
+Rol: admin/director
+
+Docente:
+Correo: docente.demo@qhere.local
+Rol: teacher
+
+Padre o tutor:
+Correo: padre.demo@qhere.local
+Rol: parent
+```
+
+**Importante:** no publicar contrasenas reales ni claves `service_role` en GitHub. Las contrasenas de demostracion deben entregarse de forma privada o en el documento local `docs/CREDENCIALES_RELEVANTES.md`.
+
+## API Utilizada y su Implementacion Paso a Paso
+
+### API del Backend Flask
+
+El backend expone una API REST bajo el prefijo:
+
+```text
+http://localhost:5000/api
+```
+
+Principales endpoints:
+
+```text
+POST /api/auth/login
+POST /api/auth/logout
+GET  /api/auth/me
+POST /api/auth/register
+
+GET  /api/students
+GET  /api/students/:id
+POST /api/students
+PUT  /api/students/:id
+DELETE /api/students/:id
+
+GET  /api/teachers
+GET  /api/teachers/:id
+GET  /api/teachers/:id/students
+GET  /api/teachers/:id/attendance
+
+GET  /api/excuses
+POST /api/excuses
+POST /api/excuses/upload-evidence
+PATCH /api/excuses/:id/review
+
+POST /api/attendance/scan
+POST /api/attendance/manual
+
+POST /api/management/director-requests
+POST /api/management/users
+GET  /api/management/super-admin/overview
+POST /api/management/super-admin/schools
+POST /api/management/super-admin/schools/:id/assign-director
+POST /api/management/super-admin/directors/:profile_id/:action
+```
+
+### Implementacion de la API
+
+1. El frontend captura la accion del usuario desde React.
+2. Los archivos de `frontend/src/api/` preparan la solicitud HTTP.
+3. La solicitud se envia al backend Flask usando la URL configurada en `VITE_API_URL`.
+4. Flask recibe la solicitud en los archivos de `backend/app/routes/`.
+5. Las rutas validan datos y permisos.
+6. Los servicios de `backend/app/services/` procesan la logica principal.
+7. Los repositorios de `backend/app/repositories/` consultan o modifican datos en Supabase.
+8. Supabase guarda los registros en PostgreSQL.
+9. El backend responde al frontend con JSON.
+10. React actualiza la interfaz del usuario.
+
+### API de Supabase
+
+Supabase se utiliza para:
+
+- Autenticacion de usuarios.
+- Base de datos PostgreSQL.
+- Storage para evidencias.
+- RPC para funciones de base de datos.
+- Realtime para actualizaciones.
+- Edge Function para notificaciones.
+
+### Implementacion de Supabase
+
+1. Crear proyecto en Supabase.
+2. Ejecutar `database/full_supabase_script.sql`.
+3. Configurar variables `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_KEY`.
+4. Configurar politicas, roles y tablas segun el script.
+5. Activar Realtime segun `database/realtime_setup.sql`.
+6. Subir la Edge Function ubicada en `database/edge-functions/notify-attendance/`.
+7. Probar autenticacion y operaciones CRUD desde el sistema.
+
+## Base de Datos
+
+Archivos principales:
+
+- `database/schema.sql`: estructura principal.
+- `database/full_supabase_script.sql`: script completo de entrega.
+- `database/rpc_functions.sql`: funciones RPC.
+- `database/realtime_setup.sql`: configuracion de Realtime.
+- `database/EDGE_FUNCTION.md`: guia de Edge Function.
+- `database/edge-functions/`: codigo de Edge Function.
+- `database/migrations/`: migraciones complementarias.
+- `docs/DIAGRAMA_BASE_DATOS.md`: diagrama y explicacion de la base de datos.
+
+## Documentacion Incluida
+
+- `docs/ACTA_PROYECTO.md`
+- `docs/ACTA_PROYECTO_QHERE_COMPLETA.md`
+- `docs/ANALISIS_Y_DISENO.md`
+- `docs/CRONOGRAMA_ACTIVIDADES.md`
+- `docs/CRONOGRAMA_ACTIVIDADES_QHERE.xlsx`
+- `docs/DIAGRAMA_BASE_DATOS.md`
+- `docs/MANUAL_TECNICO.md`
+- `docs/MANUAL_USUARIO.md`
+- `docs/PRESENTACION_PROPUESTA.md`
+- `docs/TRAZABILIDAD_RF.md`
+- `docs/GUIA_ENTREGA_USB.md`
+- `docs/CREDENCIALES_RELEVANTES.md`
+- `docs/CAPTURAS_REQUERIDAS.md`
+
+## Verificacion Rapida
+
+### Frontend
+
+```bash
+cd frontend
+npm run build
+```
+
+### Backend
 
 ```bash
 cd backend
-python process_notification_queue.py
+python -m compileall app
 ```
 
-## Credenciales relevantes
+### Lint del frontend
 
-- Las credenciales activas de demostracion deben definirse segun el entorno Supabase que se entregue.
-- Se recomienda entregar un usuario `admin`, uno `teacher` y uno `parent`.
-- No se deben publicar claves `service_role` en documentacion abierta.
+```bash
+cd frontend
+npm run lint
+```
 
-## Documentacion incluida
+## Autor del Desarrollo
 
-- `docs/ACTA_PROYECTO.md`
-- `docs/CRONOGRAMA_ACTIVIDADES.md`
-- `docs/MANUAL_TECNICO.md`
-- `docs/MANUAL_USUARIO.md`
-- `docs/ANALISIS_Y_DISENO.md`
-- `docs/TRAZABILIDAD_RF.md`
-- `docs/DIAGRAMA_BASE_DATOS.md`
-- `docs/PRESENTACION_PROPUESTA.md`
-- `docs/GUIA_ENTREGA_USB.md`
-- `docs/CREDENCIALES_RELEVANTES.md`
+**Jose Luis Polanco**
 
-## Autores
+Responsable del desarrollo frontend, backend, base de datos, documentacion tecnica y preparacion de entrega del proyecto QHere.
 
-- Desarrollador: Dustin Polanco
-- Administrador de proyecto: Rijo
+## Autor / Administrador del Proyecto
+
+**Jose Rijo**
+
+Administrador del proyecto, seguimiento academico y supervision general de la entrega.
