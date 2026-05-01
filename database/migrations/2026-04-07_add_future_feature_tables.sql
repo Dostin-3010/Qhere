@@ -188,7 +188,7 @@ create table if not exists public.notification_queue (
   related_table text,
   related_id uuid,
   channel text not null
-    check (channel in ('email', 'sms', 'push', 'whatsapp')),
+    check (channel in ('email', 'sms', 'push', 'whatsapp', 'panel')),
   template_key text,
   subject text,
   payload jsonb not null default '{}'::jsonb,

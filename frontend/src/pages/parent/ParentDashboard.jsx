@@ -133,6 +133,18 @@ const STYLES = `
   .pd-btn-secondary { background:${C.skyLight}; color:${C.navy}; border:1px solid ${C.border}; width:100%; justify-content:center; margin-top:8px; }
   .pd-btn-secondary:hover { background:${C.sky}; }
 
+  .pd-alert-list { display:grid; gap:10px; }
+  .pd-alert-item { border:1px solid ${C.border}; border-radius:12px; padding:13px; background:linear-gradient(180deg,#fff,#F5FAFD); }
+  .pd-alert-item.urgent { border-color:#fecaca; background:linear-gradient(180deg,#fff7f7,#fff); }
+  .pd-alert-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:7px; }
+  .pd-alert-title { font-size:13px; font-weight:700; color:${C.dark}; line-height:1.35; }
+  .pd-alert-date { font-size:10px; color:${C.mid}; white-space:nowrap; }
+  .pd-alert-copy { font-size:12px; color:${C.mid}; line-height:1.45; }
+  .pd-alert-meta { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .pd-alert-chip { border-radius:999px; padding:3px 8px; background:${C.skyLight}; color:${C.navy}; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .pd-alert-chip.danger { background:#fee2e2; color:#991b1b; }
+  .pd-alert-chip.warn { background:#fef3c7; color:#92400e; }
+
   /* Empty */
   .pd-empty { text-align:center; padding:32px 16px; color:${C.mid}; font-size:13px; }
 
@@ -155,6 +167,11 @@ function formatFecha(f) {
   return new Date(f + 'T12:00:00').toLocaleDateString('es-DO', { day: 'numeric', month: 'long' })
 }
 
+function formatDateTime(value) {
+  if (!value) return ''
+  return new Date(value).toLocaleDateString('es-DO', { day: 'numeric', month: 'short' })
+}
+
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const DIAS  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
 
@@ -169,6 +186,23 @@ const TIPOS_LABEL = {
   otro: 'Otro',
 }
 const STATUS_LABEL = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada' }
+const CHANNEL_LABEL = { email: 'Correo', whatsapp: 'WhatsApp', sms: 'SMS', push: 'Push', panel: 'Panel' }
+
+function buildAlertText(alert) {
+  const payload = alert.payload || {}
+  const studentName = payload.student_name || 'el estudiante'
+  const date = payload.attendance_date ? formatFecha(payload.attendance_date) : 'la fecha registrada'
+
+  if (alert.template_key === 'attendance_late_recurrence') {
+    return `${studentName} acumula ${payload.late_count_last_30_days || 3} tardanzas en los ultimos 30 dias. Fecha reciente: ${date}.`
+  }
+
+  if (alert.template_key === 'attendance_absence') {
+    return `${studentName} fue marcado como ausente el ${date}. Puedes enviar una excusa si aplica.`
+  }
+
+  return payload.message || payload.body || 'Tienes una notificacion relacionada con la asistencia escolar.'
+}
 
 // ═══════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
@@ -182,6 +216,7 @@ export default function ParentDashboard() {
   const [selectedHijo, setSelectedHijo] = useState(null)
   const [attendance, setAttendance] = useState([])
   const [excuses, setExcuses]       = useState([])
+  const [alerts, setAlerts]         = useState([])
   const [calendarEntries, setCalendarEntries] = useState({})
   const [gradeEntries, setGradeEntries] = useState([])
   const [loading, setLoading]       = useState(true)
@@ -208,8 +243,29 @@ export default function ParentDashboard() {
       loadExcuses(selectedHijo.id)
       loadCalendar(selectedHijo)
       loadGradeEntries(selectedHijo.id)
+      loadAlerts(selectedHijo.id)
     }
   }, [selectedHijo])
+
+  useEffect(() => {
+    if (!profile?.id || !selectedHijo?.id) return undefined
+
+    const channel = supabase
+      .channel(`parent-alerts-${profile.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notification_queue',
+        filter: `recipient_id=eq.${profile.id}`,
+      }, () => {
+        loadAlerts(selectedHijo.id)
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [profile?.id, selectedHijo?.id])
 
   function injectStyles() {
     if (document.getElementById('pd-styles')) return
@@ -303,6 +359,41 @@ export default function ParentDashboard() {
     } catch (error) {
       console.error('Error loading gradebook entries:', error)
       setGradeEntries([])
+    }
+  }
+
+  async function loadAlerts(studentId) {
+    if (!profile?.id || !studentId) {
+      setAlerts([])
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('notification_queue')
+        .select('*')
+        .eq('recipient_id', profile.id)
+        .eq('student_id', studentId)
+        .in('template_key', ['attendance_absence', 'attendance_late_recurrence'])
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      if (error) throw error
+
+      const grouped = Object.values((data || []).reduce((acc, item) => {
+        const key = `${item.related_id || item.id}:${item.template_key || item.subject}`
+        if (!acc[key]) {
+          acc[key] = { ...item, channels: [], statuses: [] }
+        }
+        acc[key].channels.push(item.channel)
+        acc[key].statuses.push(item.status)
+        return acc
+      }, {}))
+
+      setAlerts(grouped.slice(0, 5))
+    } catch (error) {
+      console.error('Error loading tutor alerts:', error)
+      setAlerts([])
     }
   }
 
@@ -569,6 +660,51 @@ export default function ParentDashboard() {
                   {/* Columna derecha */}
                     <div>
                       {/* Acceso rápido */}
+                      <div className="pd-card" style={{ marginBottom: 24 }}>
+                        <div className="pd-card-head">
+                          <div>
+                            <h3>Alertas de asistencia</h3>
+                            <p>Notificaciones por ausencia o tardanza recurrente</p>
+                          </div>
+                        </div>
+                        <div className="pd-card-body">
+                          {alerts.length === 0 ? (
+                            <div className="pd-empty">No hay alertas recientes para este estudiante.</div>
+                          ) : (
+                            <div className="pd-alert-list">
+                              {alerts.map(alert => {
+                                const isAbsence = alert.template_key === 'attendance_absence'
+                                const channels = [...new Set(alert.channels || [alert.channel])].filter(Boolean)
+                                const statuses = [...new Set(alert.statuses || [alert.status])].filter(Boolean)
+
+                                return (
+                                  <div key={`${alert.id}:${alert.template_key}`} className={`pd-alert-item${isAbsence ? ' urgent' : ''}`}>
+                                    <div className="pd-alert-top">
+                                      <div className="pd-alert-title">
+                                        {alert.subject || (isAbsence ? 'Ausencia registrada' : 'Tardanza recurrente')}
+                                      </div>
+                                      <div className="pd-alert-date">{formatDateTime(alert.created_at)}</div>
+                                    </div>
+                                    <div className="pd-alert-copy">{buildAlertText(alert)}</div>
+                                    <div className="pd-alert-meta">
+                                      <span className={`pd-alert-chip${isAbsence ? ' danger' : ' warn'}`}>
+                                        {isAbsence ? 'Ausencia' : 'Recurrente'}
+                                      </span>
+                                      {channels.map(channel => (
+                                        <span key={channel} className="pd-alert-chip">{CHANNEL_LABEL[channel] || channel}</span>
+                                      ))}
+                                      {statuses.map(status => (
+                                        <span key={status} className="pd-alert-chip">{status}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
                       <div className="pd-card" style={{ marginBottom: 24 }}>
                       <div className="pd-card-head"><h3>Acciones rápidas</h3></div>
                       <div className="pd-card-body">
