@@ -35,6 +35,24 @@ DEVICE_BLOCK_MESSAGE = (
     'Usa uno previamente aprobado o solicita autorizacion al administrador.'
 )
 
+PROFILE_BASE_FIELDS = ['id', 'role', 'full_name', 'email']
+PROFILE_OPTIONAL_FIELDS = ['school_id', 'phone', 'secciones_ids', 'margen_tardanza_minutos']
+
+
+def _missing_column_name(error):
+    message = str(error)
+    markers = [
+        'column profiles.',
+        'column students.',
+        'column grade_sections.',
+    ]
+
+    for marker in markers:
+        if marker in message and ' does not exist' in message:
+            return message.split(marker, 1)[1].split(' does not exist', 1)[0].strip('"\' ')
+
+    return None
+
 
 def _current_user():
     token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
@@ -129,11 +147,22 @@ def _get_client_ip():
 
 
 def _get_profile(user_id):
-    result = supabase.table('profiles') \
-        .select('id, role, school_id, full_name, email, phone, secciones_ids, margen_tardanza_minutos') \
-        .eq('id', user_id) \
-        .single() \
-        .execute()
+    fields = [*PROFILE_BASE_FIELDS, *PROFILE_OPTIONAL_FIELDS]
+
+    while True:
+        try:
+            result = supabase.table('profiles') \
+                .select(', '.join(fields)) \
+                .eq('id', user_id) \
+                .single() \
+                .execute()
+            break
+        except Exception as exc:
+            missing_column = _missing_column_name(exc)
+            if missing_column and missing_column in fields and missing_column in PROFILE_OPTIONAL_FIELDS:
+                fields.remove(missing_column)
+                continue
+            raise
 
     profile = result.data or {}
     if not profile:
@@ -331,26 +360,55 @@ def _student_select_fields():
     )
 
 
-def _get_student(student_id):
-    result = supabase.table('students') \
-        .select(_student_select_fields()) \
-        .eq('id', student_id) \
-        .limit(1) \
-        .execute()
+def _student_select_fields_for_missing(missing_columns=None):
+    missing_columns = missing_columns or set()
+    student_school_field = '' if 'school_id' in missing_columns else 'school_id, '
+    special_fields = (
+        ''
+        if missing_columns.intersection({
+            'special_schedule_enabled',
+            'hora_entrada_especial',
+            'hora_salida_especial',
+            'hora_limite_tardanza_especial',
+        })
+        else ', special_schedule_enabled, hora_entrada_especial, hora_salida_especial, hora_limite_tardanza_especial'
+    )
 
-    rows = result.data or []
-    return rows[0] if rows else None
+    return (
+        f'id, nombre, matricula, {student_school_field}parent_id, grade_section_id, qr_token, '
+        f'grade_sections:grade_section_id(id, grado, seccion, turno{special_fields})'
+    )
+
+
+def _fetch_student(field_name, value):
+    missing_columns = set()
+    select_fields = _student_select_fields_for_missing(missing_columns)
+
+    while True:
+        try:
+            result = supabase.table('students') \
+                .select(select_fields) \
+                .eq(field_name, value) \
+                .limit(1) \
+                .execute()
+
+            rows = result.data or []
+            return rows[0] if rows else None
+        except Exception as exc:
+            missing_column = _missing_column_name(exc)
+            if missing_column and missing_column not in missing_columns:
+                missing_columns.add(missing_column)
+                select_fields = _student_select_fields_for_missing(missing_columns)
+                continue
+            raise
+
+
+def _get_student(student_id):
+    return _fetch_student('id', student_id)
 
 
 def _get_student_by_matricula(matricula):
-    result = supabase.table('students') \
-        .select(_student_select_fields()) \
-        .eq('matricula', matricula) \
-        .limit(1) \
-        .execute()
-
-    rows = result.data or []
-    return rows[0] if rows else None
+    return _fetch_student('matricula', matricula)
 
 
 def _get_attendance_for_day(student_id, fecha):
