@@ -462,8 +462,11 @@ export default function ManageTeachers() {
 
       const scopedSectionIds = new Set((secs ?? []).map(section => section.id))
       const scopedTeachers = (profs ?? []).filter(teacher =>
-        teacher.school_id === activeSchoolId ||
-        (teacher.secciones_ids ?? []).some(sectionId => scopedSectionIds.has(sectionId))
+        teacher.approval_status !== 'rejected' &&
+        (
+          teacher.school_id === activeSchoolId ||
+          (teacher.secciones_ids ?? []).some(sectionId => scopedSectionIds.has(sectionId))
+        )
       )
 
       setTeachers(scopedTeachers)
@@ -524,14 +527,69 @@ export default function ManageTeachers() {
     finally { setSaving(false) }
   }
 
+  const removeMissingColumnFromPayload = (payload, error) => {
+    const message = String(error?.message || '')
+    const match = message.match(/'([^']+)' column|column profiles\.([a-zA-Z0-9_]+) does not exist/i)
+    const column = match?.[1] || match?.[2]
+
+    if (!column || !(column in payload)) return false
+    delete payload[column]
+    return true
+  }
+
+  const retireTeacher = async (teacher) => {
+    const payload = {
+      school_id: null,
+      secciones_ids: [],
+      permisos: [],
+      approval_status: 'rejected',
+      approval_note: `Docente retirado del centro el ${new Date().toISOString().slice(0, 10)} para conservar historial de asistencia.`,
+    }
+
+    while (Object.keys(payload).length > 0) {
+      const { error } = await supabase
+        .from('profiles')
+        .update(payload)
+        .eq('id', teacher.id)
+
+      if (!error) return
+      if (!removeMissingColumnFromPayload(payload, error)) throw error
+    }
+
+    throw new Error('No fue posible retirar el docente porque faltan columnas requeridas en profiles.')
+  }
+
   const handleDelete = async () => {
     if (!deleteTeacher) return
+    setSaving(true)
     try {
-      const { error } = await supabase.from('profiles').delete().eq('id', deleteTeacher.id)
-      if (error) throw error
+      const { count, error: countError } = await supabase
+        .from('attendance')
+        .select('id', { count: 'exact', head: true })
+        .eq('teacher_id', deleteTeacher.id)
+
+      if (countError) throw countError
+
+      if ((count ?? 0) > 0) {
+        await retireTeacher(deleteTeacher)
+        alert('El docente tiene historial de asistencia, por eso fue retirado del centro sin borrar sus registros.')
+      } else {
+        const { error } = await supabase.from('profiles').delete().eq('id', deleteTeacher.id)
+        if (error) {
+          const message = String(error.message || '')
+          if (message.includes('foreign key constraint') || message.includes('violates foreign key')) {
+            await retireTeacher(deleteTeacher)
+            alert('El docente estaba vinculado a registros del sistema, por eso fue retirado sin borrar el historial.')
+          } else {
+            throw error
+          }
+        }
+      }
+
       setDeleteTeacher(null)
       await loadData()
     } catch (err) { alert('Error: ' + err.message) }
+    finally { setSaving(false) }
   }
 
   const handleSignOut = async () => { await signOut(); navigate('/') }
@@ -707,18 +765,20 @@ export default function ManageTeachers() {
           <div className="mt-modal-overlay" onClick={() => setDeleteTeacher(null)}>
             <div className="mt-modal" style={{maxWidth:400}} onClick={e => e.stopPropagation()}>
               <div className="mt-modal-header">
-                <div className="mt-modal-title">Eliminar docente</div>
+                <div className="mt-modal-title">Retirar docente</div>
                 <button type="button" aria-label="Cerrar modal" className="mt-modal-close" onClick={() => setDeleteTeacher(null)}>x</button>
               </div>
               <div className="mt-modal-body">
                 <p style={{fontSize:14, color:'#4A6A8A', lineHeight:1.6}}>
-                  Estas seguro que deseas eliminar a <strong style={{color:'#102847'}}>{deleteTeacher.full_name}</strong>?
-                  Perdera acceso al sistema.
+                  Estas seguro que deseas retirar a <strong style={{color:'#102847'}}>{deleteTeacher.full_name}</strong>?
+                  Si tiene historial de asistencia, se conservaran sus registros y dejara de aparecer en este centro.
                 </p>
               </div>
               <div className="mt-modal-footer">
                 <button className="mt-btn-cancel" onClick={() => setDeleteTeacher(null)}>Cancelar</button>
-                <button className="mt-btn-danger" onClick={handleDelete}>Si, eliminar</button>
+                <button className="mt-btn-danger" onClick={handleDelete} disabled={saving}>
+                  {saving ? 'Procesando...' : 'Si, retirar'}
+                </button>
               </div>
             </div>
           </div>
