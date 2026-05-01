@@ -225,16 +225,6 @@ const STYLES = `
   .td-btn-secondary:hover { background:#f5f5f4; border-color:#111111; }
   .td-btn-sm { padding:7px 14px; font-size:13px; }
   .td-btn-row { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
-  .td-quick-manual {
-    margin-top:16px; padding:14px; border-radius:14px;
-    border:1px solid rgba(17,17,17,.14); background:#f7f7f5;
-    display:grid; gap:10px;
-  }
-  .td-quick-manual-title { font-size:12px; font-weight:800; color:#111111; letter-spacing:.06em; text-transform:uppercase; }
-  .td-quick-manual-copy { font-size:12px; color:#57534e; line-height:1.45; }
-  .td-quick-manual-grid { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; }
-  .td-quick-manual-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-
   /* Resultado del escaneo */
   .td-scan-result {
     margin-top:14px; padding:14px 16px; border-radius:10px; font-size:14px; font-weight:500;
@@ -540,14 +530,29 @@ function centerCrop(image, ratio) {
   }
 }
 
+function squareCropAt(image, centerXRatio, centerYRatio, sizeRatio) {
+  const size = Math.min(image.naturalWidth, image.naturalHeight) * sizeRatio
+  const x = Math.min(Math.max(0, (image.naturalWidth * centerXRatio) - (size / 2)), image.naturalWidth - size)
+  const y = Math.min(Math.max(0, (image.naturalHeight * centerYRatio) - (size / 2)), image.naturalHeight - size)
+
+  return { x, y, width: size, height: size }
+}
+
 async function buildQrReadableFileVariants(file) {
   const image = await loadImageFromFile(file)
   const variants = [{ file, label: 'original', canvas: drawImageVariant(image, { maxSize: 2200 }) }]
   const configs = [
     { name: 'ampliada', maxSize: 2200 },
     { name: 'alto-contraste', maxSize: 2200, threshold: true },
-    { name: 'centro', crop: centerCrop(image, 0.86), maxSize: 1800 },
-    { name: 'centro-contraste', crop: centerCrop(image, 0.72), maxSize: 1800, threshold: true },
+    { name: 'centro-amplio', crop: centerCrop(image, 0.92), maxSize: 2200 },
+    { name: 'centro', crop: centerCrop(image, 0.72), maxSize: 2000 },
+    { name: 'centro-contraste', crop: centerCrop(image, 0.72), maxSize: 2000, threshold: true },
+    { name: 'zona-superior-izquierda', crop: squareCropAt(image, 0.28, 0.28, 0.55), maxSize: 1800 },
+    { name: 'zona-superior-centro', crop: squareCropAt(image, 0.5, 0.28, 0.55), maxSize: 1800 },
+    { name: 'zona-superior-derecha', crop: squareCropAt(image, 0.72, 0.28, 0.55), maxSize: 1800 },
+    { name: 'zona-media-izquierda', crop: squareCropAt(image, 0.28, 0.5, 0.55), maxSize: 1800 },
+    { name: 'zona-media-derecha', crop: squareCropAt(image, 0.72, 0.5, 0.55), maxSize: 1800 },
+    { name: 'zona-inferior-centro', crop: squareCropAt(image, 0.5, 0.72, 0.55), maxSize: 1800 },
   ]
 
   for (const config of configs) {
@@ -557,6 +562,18 @@ async function buildQrReadableFileVariants(file) {
   }
 
   return variants
+}
+
+async function scanQrVariant(reader, variant) {
+  const nativeResult = await scanCanvasWithBarcodeDetector(variant.canvas)
+  if (nativeResult) return nativeResult
+
+  if (typeof reader.scanFileV2 === 'function') {
+    const result = await reader.scanFileV2(variant.file, false)
+    return result?.decodedText || result?.text || result?.result?.text || ''
+  }
+
+  return reader.scanFile(variant.file, false)
 }
 
 function normalizeQrReadError(error, fileName) {
@@ -640,11 +657,13 @@ export default function TeacherDashboard() {
   }, [])
 
   function injectStyles() {
-    if (document.getElementById('td-styles')) return
-    const el = document.createElement('style')
-    el.id = 'td-styles'
+    let el = document.getElementById('td-styles')
+    if (!el) {
+      el = document.createElement('style')
+      el.id = 'td-styles'
+      document.head.appendChild(el)
+    }
     el.textContent = STYLES
-    document.head.appendChild(el)
   }
 
   function waitForNextPaint() {
@@ -1027,11 +1046,8 @@ export default function TeacherDashboard() {
 
       for (const variant of variants) {
         try {
-          decodedText = await scanCanvasWithBarcodeDetector(variant.canvas)
-          if (!decodedText) {
-            decodedText = await html5QrRef.current.scanFile(variant.file, false)
-          }
-          break
+          decodedText = await scanQrVariant(html5QrRef.current, variant)
+          if (decodedText) break
         } catch (scanError) {
           lastError = scanError
         }
@@ -1383,7 +1399,7 @@ export default function TeacherDashboard() {
                 <div className="td-qr-viewport">
                   {!scannerMountVisible ? (
                     <div className="td-qr-placeholder">
-                      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke={C.skyMid} strokeWidth="1.5">
+                      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                         <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
                         <rect x="3" y="14" width="7" height="7"/><rect x="14" y="17" width="7" height="4"/>
                         <rect x="17" y="14" width="4" height="3"/>
@@ -1438,43 +1454,6 @@ export default function TeacherDashboard() {
                 <div style={{ marginTop: 10, fontSize: 12, color: C.mid }}>
                   Si tu webcam falla, puedes subir una captura o foto del QR para probar el registro.
                 </div>
-
-                <form className="td-quick-manual" onSubmit={handleManual}>
-                  <div>
-                    <div className="td-quick-manual-title">Registro manual rapido</div>
-                    <div className="td-quick-manual-copy">
-                      Si la captura no detecta el QR, registra la asistencia con la matricula del estudiante.
-                    </div>
-                  </div>
-                  <div className="td-quick-manual-grid">
-                    <input
-                      className="td-input"
-                      placeholder="Matricula del estudiante"
-                      value={manualMatricula}
-                      onChange={e => setManualMatricula(e.target.value)}
-                    />
-                    <button className="td-btn td-btn-primary" disabled={manualLoading} type="submit">
-                      {manualLoading ? 'Registrando...' : 'Registrar'}
-                    </button>
-                  </div>
-                  <div className="td-quick-manual-actions">
-                    <select className="td-select" value={manualAction} onChange={e => setManualAction(e.target.value)} style={{ maxWidth: 150 }}>
-                      <option value="check_in">Entrada</option>
-                      <option value="check_out">Salida</option>
-                    </select>
-                    <select
-                      className="td-select"
-                      value={manualEstado}
-                      onChange={e => setManualEstado(e.target.value)}
-                      disabled={manualAction === 'check_out'}
-                      style={{ maxWidth: 150 }}
-                    >
-                      <option value="presente">Presente</option>
-                      <option value="tarde">Tarde</option>
-                      <option value="ausente">Ausente</option>
-                    </select>
-                  </div>
-                </form>
 
                 {scanning && activeCameraLabel && (
                   <div style={{ marginTop: 10, fontSize: 12, color: C.mid }}>
