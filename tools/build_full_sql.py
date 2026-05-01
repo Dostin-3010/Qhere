@@ -15,6 +15,7 @@ FILES = [
     "database/migrations/2026-04-22_complete_remaining_school_requirements.sql",
     "database/migrations/2026-04-30_add_profiles_approval_columns_if_missing.sql",
     "database/migrations/2026-04-30_add_profiles_school_id_if_missing.sql",
+    "database/migrations/2026-05-01_add_school_calendar_rls_policies.sql",
     "database/future_tables.sql",
     "database/rpc_functions.sql",
     "database/realtime_setup.sql",
