@@ -56,12 +56,13 @@ Incluido:
 [OK] README general.
 [OK] Acta de proyecto.
 [OK] Manual tecnico.
-[OK] Manual de usuario.
+[OK] Manual de usuario basico y manual completo con capturas.
 [OK] Cronograma de actividades en Markdown y Excel.
 [OK] Analisis y diseno del sistema.
 [OK] Trazabilidad RF-01 a RF-25.
 [OK] Presentacion tipo propuesta en Markdown y PDF.
 [OK] Capturas publicas generadas automaticamente: home, login, registro director.
+[OK] Guia para completar capturas autenticadas del manual.
 
 Pendiente recomendado antes de entregar:
 [ ] Agregar capturas autenticadas reales: super admin, panel director, centro, estudiantes, docentes, padres, excusas, QR y reportes.
@@ -114,6 +115,7 @@ def main():
     copy_dir(ROOT / "docs" / "pdf", docs / "PDF")
 
     copy_dir(ROOT / "entrega_assets" / "capturas_png", captures / "PNG")
+    copy_dir(ROOT / "entrega_assets" / "manual_capturas", captures / "MANUAL_USUARIO_PNG")
     copy_file(ROOT / "docs" / "pdf" / "CAPTURAS_APLICACION.pdf", captures / "CAPTURAS_APLICACION.pdf")
     copy_file(ROOT / "docs" / "CAPTURAS_REQUERIDAS.md", captures / "CAPTURAS_REQUERIDAS.md")
 
