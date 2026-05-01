@@ -3,6 +3,13 @@ import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { requestDirectorAccess } from '../api/backendApi'
 import BrandLogo from '../components/ui/BrandLogo'
+import {
+  MAX_EMAIL_LENGTH,
+  formatDominicanPhone,
+  normalizeEmail,
+  validateDominicanPhone,
+  validateEmail,
+} from '../utils/formValidation'
 
 const styles = `
   .dr-root {
@@ -210,6 +217,16 @@ const styles = `
     border-color: #111111;
     box-shadow: 0 0 0 4px rgba(232,33,39,.1);
   }
+  .dr-input.invalid {
+    border-color: #dc2626;
+    background: #fff7f7;
+  }
+  .dr-error {
+    color: #dc2626;
+    font-size: .72rem;
+    line-height: 1.4;
+    margin-top: -4px;
+  }
   .dr-actions {
     display: flex;
     gap: 12px;
@@ -296,22 +313,43 @@ export default function DirectorRegister() {
     school_phone: '',
     school_address: '',
   })
+  const [errors, setErrors] = useState({})
 
   function updateField(field, value) {
-    setForm((current) => ({ ...current, [field]: value }))
+    const nextValue = field.includes('phone') ? formatDominicanPhone(value) : value
+    setForm((current) => ({ ...current, [field]: nextValue }))
+    setErrors((current) => ({ ...current, [field]: '' }))
   }
 
   async function handleSubmit(event) {
     event.preventDefault()
     if (submitting) return
 
-    if (!form.full_name.trim() || !form.email.trim() || !form.password || !form.school_name.trim()) {
-      toast.error('Completa tu nombre, correo, contrasena y el nombre del centro.')
-      return
+    const normalized = {
+      ...form,
+      full_name: form.full_name.trim(),
+      email: normalizeEmail(form.email),
+      phone: formatDominicanPhone(form.phone),
+      school_name: form.school_name.trim(),
+      school_email: form.school_email ? normalizeEmail(form.school_email) : '',
+      school_phone: formatDominicanPhone(form.school_phone),
+      school_address: form.school_address.trim(),
+    }
+    const nextErrors = {
+      full_name: normalized.full_name ? '' : 'Tu nombre completo es obligatorio.',
+      email: validateEmail(normalized.email, 'correo electronico'),
+      password: normalized.password.length >= 6 ? '' : 'La contrasena debe tener al menos 6 caracteres.',
+      phone: validateDominicanPhone(normalized.phone),
+      school_name: normalized.school_name ? '' : 'El nombre del centro es obligatorio.',
+      school_email: normalized.school_email ? validateEmail(normalized.school_email, 'correo del centro') : '',
+      school_phone: validateDominicanPhone(normalized.school_phone, { label: 'telefono del centro' }),
     }
 
-    if (form.password.length < 6) {
-      toast.error('La contrasena debe tener al menos 6 caracteres.')
+    setForm(normalized)
+    setErrors(nextErrors)
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      toast.error('Revisa los campos marcados antes de enviar.')
       return
     }
 
@@ -319,14 +357,7 @@ export default function DirectorRegister() {
 
     try {
       const result = await requestDirectorAccess({
-        ...form,
-        full_name: form.full_name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        school_name: form.school_name.trim(),
-        school_email: form.school_email.trim(),
-        school_phone: form.school_phone.trim(),
-        school_address: form.school_address.trim(),
+        ...normalized,
       })
       toast.success(result?.request_reopened ? 'Solicitud reenviada y puesta en revision.' : 'Solicitud enviada. Revisa tu correo cuando direccion apruebe el acceso.')
       navigate('/login', { replace: true })
@@ -379,22 +410,26 @@ export default function DirectorRegister() {
                   <div className="dr-grid">
                     <label className="dr-field">
                       <span className="dr-label">Nombre completo</span>
-                      <input autoComplete="name" className="dr-input" placeholder="Ej. Dustin Polanco" required value={form.full_name} onChange={(event) => updateField('full_name', event.target.value)} />
+                      <input autoComplete="name" className={`dr-input${errors.full_name ? ' invalid' : ''}`} maxLength={90} placeholder="Ej. Dustin Polanco" required value={form.full_name} onChange={(event) => updateField('full_name', event.target.value)} />
+                      {errors.full_name && <span className="dr-error">{errors.full_name}</span>}
                     </label>
 
                     <label className="dr-field">
                       <span className="dr-label">Correo personal o institucional</span>
-                      <input autoComplete="email" className="dr-input" placeholder="director@centro.edu" required type="email" value={form.email} onChange={(event) => updateField('email', event.target.value)} />
+                      <input autoComplete="email" className={`dr-input${errors.email ? ' invalid' : ''}`} maxLength={MAX_EMAIL_LENGTH} placeholder="director@centro.edu" required type="email" value={form.email} onChange={(event) => updateField('email', event.target.value)} />
+                      {errors.email && <span className="dr-error">{errors.email}</span>}
                     </label>
 
                     <label className="dr-field">
                       <span className="dr-label">Contrasena</span>
-                      <input autoComplete="new-password" className="dr-input" minLength={6} placeholder="Minimo 6 caracteres" required type="password" value={form.password} onChange={(event) => updateField('password', event.target.value)} />
+                      <input autoComplete="new-password" className={`dr-input${errors.password ? ' invalid' : ''}`} minLength={6} placeholder="Minimo 6 caracteres" required type="password" value={form.password} onChange={(event) => updateField('password', event.target.value)} />
+                      {errors.password && <span className="dr-error">{errors.password}</span>}
                     </label>
 
                     <label className="dr-field">
                       <span className="dr-label">Telefono</span>
-                      <input autoComplete="tel" className="dr-input" placeholder="809-000-0000" value={form.phone} onChange={(event) => updateField('phone', event.target.value)} />
+                      <input autoComplete="tel" className={`dr-input${errors.phone ? ' invalid' : ''}`} inputMode="tel" maxLength={12} placeholder="809-000-0000" value={form.phone} onChange={(event) => updateField('phone', event.target.value)} />
+                      {errors.phone && <span className="dr-error">{errors.phone}</span>}
                     </label>
                   </div>
                 </section>
@@ -404,17 +439,20 @@ export default function DirectorRegister() {
                   <div className="dr-grid">
                     <label className="dr-field full">
                       <span className="dr-label">Nombre del centro educativo</span>
-                      <input autoComplete="organization" className="dr-input" placeholder="Nombre oficial del centro" required value={form.school_name} onChange={(event) => updateField('school_name', event.target.value)} />
+                      <input autoComplete="organization" className={`dr-input${errors.school_name ? ' invalid' : ''}`} maxLength={120} placeholder="Nombre oficial del centro" required value={form.school_name} onChange={(event) => updateField('school_name', event.target.value)} />
+                      {errors.school_name && <span className="dr-error">{errors.school_name}</span>}
                     </label>
 
                     <label className="dr-field">
                       <span className="dr-label">Correo del centro</span>
-                      <input autoComplete="email" className="dr-input" placeholder="contacto@centro.edu" type="email" value={form.school_email} onChange={(event) => updateField('school_email', event.target.value)} />
+                      <input autoComplete="email" className={`dr-input${errors.school_email ? ' invalid' : ''}`} maxLength={MAX_EMAIL_LENGTH} placeholder="contacto@centro.edu" type="email" value={form.school_email} onChange={(event) => updateField('school_email', event.target.value)} />
+                      {errors.school_email && <span className="dr-error">{errors.school_email}</span>}
                     </label>
 
                     <label className="dr-field">
                       <span className="dr-label">Telefono del centro</span>
-                      <input autoComplete="tel" className="dr-input" placeholder="Telefono institucional" value={form.school_phone} onChange={(event) => updateField('school_phone', event.target.value)} />
+                      <input autoComplete="tel" className={`dr-input${errors.school_phone ? ' invalid' : ''}`} inputMode="tel" maxLength={12} placeholder="809-000-0000" value={form.school_phone} onChange={(event) => updateField('school_phone', event.target.value)} />
+                      {errors.school_phone && <span className="dr-error">{errors.school_phone}</span>}
                     </label>
 
                     <label className="dr-field full">

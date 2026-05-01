@@ -10,6 +10,13 @@ import {
 import { useAuth } from '../context/AuthContext'
 import BrandLogo from '../components/ui/BrandLogo'
 import { isSuperAdminEmail } from '../utils/access'
+import {
+  MAX_EMAIL_LENGTH,
+  formatDominicanPhone,
+  normalizeEmail,
+  validateDominicanPhone,
+  validateEmail,
+} from '../utils/formValidation'
 
 const styles = `
   .ra-root {
@@ -444,6 +451,16 @@ const styles = `
     border-color: #111111;
     box-shadow: 0 0 0 3px rgba(232,33,39,.1);
   }
+  .ra-input.invalid {
+    border-color: #dc2626;
+    background: #fff7f7;
+  }
+  .ra-error {
+    color: #dc2626;
+    font-size: .72rem;
+    line-height: 1.35;
+    margin-top: -6px;
+  }
   @media (max-width: 960px) {
     .ra-top,
     .ra-stats,
@@ -514,6 +531,7 @@ export default function SuperAdminDashboard() {
     email: '',
     director: '',
   })
+  const [schoolFormErrors, setSchoolFormErrors] = useState({})
   const [directorAssignments, setDirectorAssignments] = useState({})
   const [overview, setOverview] = useState({
     stats: { schools: 0, directors: 0, pending_directors: 0 },
@@ -554,16 +572,33 @@ export default function SuperAdminDashboard() {
   async function handleCreateSchool(event) {
     event.preventDefault()
 
-    if (!schoolForm.nombre.trim()) {
-      toast.error('Escribe al menos el nombre del centro.')
+    const normalized = {
+      ...schoolForm,
+      nombre: schoolForm.nombre.trim(),
+      direccion: schoolForm.direccion.trim(),
+      telefono: formatDominicanPhone(schoolForm.telefono),
+      email: schoolForm.email ? normalizeEmail(schoolForm.email) : '',
+    }
+    const nextErrors = {
+      nombre: normalized.nombre ? '' : 'Escribe el nombre del centro.',
+      telefono: validateDominicanPhone(normalized.telefono, { label: 'telefono del centro' }),
+      email: normalized.email ? validateEmail(normalized.email, 'correo institucional') : '',
+    }
+
+    setSchoolForm(normalized)
+    setSchoolFormErrors(nextErrors)
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      toast.error('Revisa telefono/correo antes de crear el centro.')
       return
     }
 
     setCreatingSchool(true)
     try {
-      await createSchool(schoolForm)
+      await createSchool(normalized)
       toast.success('Centro educativo creado.')
       setSchoolForm({ nombre: '', direccion: '', telefono: '', email: '', director: '' })
+      setSchoolFormErrors({})
       await loadOverview()
     } catch (error) {
       toast.error(error.message || 'No se pudo crear el centro educativo.')
@@ -804,11 +839,16 @@ export default function SuperAdminDashboard() {
 
               <form className="ra-form" onSubmit={handleCreateSchool}>
                 <input
-                  className="ra-input"
-                  onChange={(event) => setSchoolForm((prev) => ({ ...prev, nombre: event.target.value }))}
+                  className={`ra-input${schoolFormErrors.nombre ? ' invalid' : ''}`}
+                  maxLength={120}
+                  onChange={(event) => {
+                    setSchoolForm((prev) => ({ ...prev, nombre: event.target.value }))
+                    setSchoolFormErrors((prev) => ({ ...prev, nombre: '' }))
+                  }}
                   placeholder="Nombre del centro educativo"
                   value={schoolForm.nombre}
                 />
+                {schoolFormErrors.nombre ? <div className="ra-error">{schoolFormErrors.nombre}</div> : null}
                 <input
                   className="ra-input"
                   onChange={(event) => setSchoolForm((prev) => ({ ...prev, direccion: event.target.value }))}
@@ -816,18 +856,30 @@ export default function SuperAdminDashboard() {
                   value={schoolForm.direccion}
                 />
                 <input
-                  className="ra-input"
-                  onChange={(event) => setSchoolForm((prev) => ({ ...prev, telefono: event.target.value }))}
+                  className={`ra-input${schoolFormErrors.telefono ? ' invalid' : ''}`}
+                  autoComplete="tel"
+                  inputMode="tel"
+                  maxLength={12}
+                  onChange={(event) => {
+                    setSchoolForm((prev) => ({ ...prev, telefono: formatDominicanPhone(event.target.value) }))
+                    setSchoolFormErrors((prev) => ({ ...prev, telefono: '' }))
+                  }}
                   placeholder="Telefono"
                   value={schoolForm.telefono}
                 />
+                {schoolFormErrors.telefono ? <div className="ra-error">{schoolFormErrors.telefono}</div> : null}
                 <input
-                  className="ra-input"
-                  onChange={(event) => setSchoolForm((prev) => ({ ...prev, email: event.target.value }))}
+                  className={`ra-input${schoolFormErrors.email ? ' invalid' : ''}`}
+                  maxLength={MAX_EMAIL_LENGTH}
+                  onChange={(event) => {
+                    setSchoolForm((prev) => ({ ...prev, email: event.target.value }))
+                    setSchoolFormErrors((prev) => ({ ...prev, email: '' }))
+                  }}
                   placeholder="Correo institucional"
                   type="email"
                   value={schoolForm.email}
                 />
+                {schoolFormErrors.email ? <div className="ra-error">{schoolFormErrors.email}</div> : null}
                 <button className="ra-btn primary" disabled={creatingSchool} type="submit">
                   {creatingSchool ? 'Creando centro...' : 'Registrar centro'}
                 </button>

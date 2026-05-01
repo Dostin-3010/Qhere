@@ -6,6 +6,13 @@ import IdentityBubble, { getIdentityInitials } from '../../components/ui/Identit
 import AdminSidebarProfileCard from '../../components/layout/AdminSidebarProfileCard'
 import BrandLogo from '../../components/ui/BrandLogo'
 import { createManagedUser } from '../../api/backendApi'
+import {
+  MAX_EMAIL_LENGTH,
+  formatDominicanPhone,
+  normalizeEmail,
+  validateDominicanPhone,
+  validateEmail,
+} from '../../utils/formValidation'
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    ESTILOS
@@ -87,7 +94,7 @@ const styles = `
   .mt-search:focus { border-color: #1B3F6B; }
   .mt-search::placeholder { color: #B8D4E8; }
   .mt-filter-wrap { position: relative; }
-  .mt-filter-wrap::after { content: 'â–¾'; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #8BBAD8; pointer-events: none; font-size: 12px; }
+  .mt-filter-wrap::after { content: 'v'; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #8BBAD8; pointer-events: none; font-size: 12px; font-weight: 700; }
   .mt-filter-select {
     padding: 10px 32px 10px 14px; font-size: 13px; font-weight: 500;
     font-family: 'DM Sans', sans-serif; color: #102847; background: #fff;
@@ -140,6 +147,9 @@ const styles = `
   .mt-input { width: 100%; padding: 11px 14px; font-size: 14px; font-family: 'DM Sans', sans-serif; color: #102847; background: #F0F7FC; border: 1.5px solid #C8DFF0; border-radius: 10px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box; }
   .mt-input::placeholder { color: #B8D4E8; }
   .mt-input:focus { border-color: #1B3F6B; box-shadow: 0 0 0 3px rgba(27,63,107,0.08); background: #fff; }
+  .mt-input.invalid { border-color: #ef4444; background: #fff7f7; }
+  .mt-field-error { color: #dc2626; font-size: 11px; line-height: 1.4; margin-top: 6px; }
+  .mt-field-help { color: #4A6A8A; font-size: 11px; line-height: 1.45; margin-top: 6px; }
   .mt-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
   /* PERMISOS */
@@ -187,7 +197,7 @@ const IcoCheck    = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="
 const PERMISOS = [
   { id: 'pasar_asistencia', label: 'Pasar asistencia', desc: 'Escanear QR y registrar entrada/salida de estudiantes' },
   { id: 'ver_reportes',     label: 'Ver reportes',     desc: 'Acceder a reportes de asistencia de sus secciones' },
-  { id: 'editar_matricula', label: 'Editar matrÃ­cula', desc: 'Modificar datos de matrÃ­cula de estudiantes' },
+  { id: 'editar_matricula', label: 'Editar matricula', desc: 'Modificar datos de matricula de estudiantes' },
   { id: 'aprobar_excusas',  label: 'Aprobar excusas',  desc: 'Revisar y aprobar o rechazar justificaciones' },
 ]
 
@@ -212,7 +222,7 @@ function Sidebar({ profile, onSignOut }) {
         <BrandLogo compact size={36} titleColor="#ffffff" subtitleColor="rgba(255,255,255,.58)" />
       </div>
       <div className="mt-sidebar-section">
-        <div className="mt-sidebar-section-label">MenÃº principal</div>
+        <div className="mt-sidebar-section-label">Menu principal</div>
         {navItems.map(item => (
           <button key={item.path}
             className={`mt-nav-item${location.pathname === item.path ? ' active' : ''}`}
@@ -240,13 +250,42 @@ function TeacherForm({ teacher, secciones, onSave, onClose, loading }) {
   const [form, setForm] = useState({
     full_name: teacher?.full_name ?? '',
     email:     teacher?.email     ?? '',
-    phone:     teacher?.phone     ?? '',
+    phone:     formatDominicanPhone(teacher?.phone ?? ''),
     margen_tardanza_minutos: teacher?.margen_tardanza_minutos ?? 30,
     permisos:  teacher?.permisos  ?? ['pasar_asistencia', 'ver_reportes', 'aprobar_excusas'],
     secciones_ids: teacher?.secciones_ids ?? [],
   })
+  const [errors, setErrors] = useState({})
 
-  const upd = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const upd = (k, v) => {
+    setForm(p => ({ ...p, [k]: v }))
+    setErrors(prev => ({ ...prev, [k]: '' }))
+  }
+
+  const submitForm = () => {
+    const nextForm = {
+      ...form,
+      full_name: form.full_name.trim(),
+      email: normalizeEmail(form.email),
+      phone: formatDominicanPhone(form.phone),
+      margen_tardanza_minutos: Number(form.margen_tardanza_minutos) || 0,
+    }
+    const nextErrors = {
+      full_name: nextForm.full_name ? '' : 'El nombre completo es obligatorio.',
+      email: validateEmail(nextForm.email, 'correo electronico'),
+      phone: validateDominicanPhone(nextForm.phone),
+      margen_tardanza_minutos:
+        nextForm.margen_tardanza_minutos < 0 || nextForm.margen_tardanza_minutos > 180
+          ? 'El margen debe estar entre 0 y 180 minutos.'
+          : '',
+    }
+
+    setForm(nextForm)
+    setErrors(nextErrors)
+
+    if (Object.values(nextErrors).some(Boolean)) return
+    onSave(nextForm)
+  }
 
   const togglePerm = (id) => {
     setForm(p => ({
@@ -271,24 +310,33 @@ function TeacherForm({ teacher, secciones, onSave, onClose, loading }) {
       <div className="mt-modal" onClick={e => e.stopPropagation()}>
         <div className="mt-modal-header">
           <div className="mt-modal-title">{teacher ? 'Editar docente' : 'Nuevo docente'}</div>
-          <button className="mt-modal-close" onClick={onClose}>Ã—</button>
+          <button type="button" aria-label="Cerrar modal" className="mt-modal-close" onClick={onClose}>x</button>
         </div>
         <div className="mt-modal-body">
           <div className="mt-field">
             <label className="mt-label">Nombre completo *</label>
-            <input className="mt-input" placeholder="Nombre del docente"
+            <input className={`mt-input${errors.full_name ? ' invalid' : ''}`} placeholder="Nombre del docente"
+              maxLength={90}
               value={form.full_name} onChange={e => upd('full_name', e.target.value)}/>
+            {errors.full_name && <div className="mt-field-error">{errors.full_name}</div>}
           </div>
           <div className="mt-grid-2">
             <div className="mt-field">
-              <label className="mt-label">Correo electrÃ³nico *</label>
-              <input className="mt-input" type="email" placeholder="correo@escuela.edu"
+              <label className="mt-label">Correo electronico *</label>
+              <input className={`mt-input${errors.email ? ' invalid' : ''}`} type="email" placeholder="correo@escuela.edu"
+                autoComplete="email"
+                maxLength={MAX_EMAIL_LENGTH}
                 value={form.email} onChange={e => upd('email', e.target.value)}/>
+              {errors.email && <div className="mt-field-error">{errors.email}</div>}
             </div>
             <div className="mt-field">
-              <label className="mt-label">TelÃ©fono</label>
-              <input className="mt-input" placeholder="809-000-0000"
-                value={form.phone} onChange={e => upd('phone', e.target.value)}/>
+              <label className="mt-label">Telefono</label>
+              <input className={`mt-input${errors.phone ? ' invalid' : ''}`} placeholder="809-000-0000"
+                autoComplete="tel"
+                inputMode="tel"
+                maxLength={12}
+                value={form.phone} onChange={e => upd('phone', formatDominicanPhone(e.target.value))}/>
+              {errors.phone && <div className="mt-field-error">{errors.phone}</div>}
             </div>
           </div>
 
@@ -302,8 +350,9 @@ function TeacherForm({ teacher, secciones, onSave, onClose, loading }) {
               value={form.margen_tardanza_minutos}
               onChange={e => upd('margen_tardanza_minutos', Math.max(0, Number(e.target.value || 0)))}
             />
-            <div style={{ fontSize: 11, color: '#4A6A8A', marginTop: 6, lineHeight: 1.5 }}>
-              El sistema sumarÃ¡ este margen a la hora oficial de entrada para decidir si el estudiante llegÃ³ a tiempo o con tardanza.
+            {errors.margen_tardanza_minutos && <div className="mt-field-error">{errors.margen_tardanza_minutos}</div>}
+            <div className="mt-field-help">
+              El sistema sumara este margen a la hora oficial de entrada para decidir si el estudiante llego a tiempo o con tardanza.
             </div>
           </div>
 
@@ -353,9 +402,9 @@ function TeacherForm({ teacher, secciones, onSave, onClose, loading }) {
         <div className="mt-modal-footer">
           <button className="mt-btn-cancel" onClick={onClose}>Cancelar</button>
           <button className="mt-btn-primary"
-            onClick={() => onSave(form)}
-            disabled={loading || !form.full_name || !form.email}>
-            {loading ? <><span className="mt-spin">âŸ³</span> Guardando...</> : 'Guardar docente'}
+            onClick={submitForm}
+            disabled={loading}>
+            {loading ? 'Guardando...' : 'Guardar docente'}
           </button>
         </div>
       </div>
@@ -433,7 +482,7 @@ export default function ManageTeachers() {
           const retry = await supabase.from('profiles').update(fallbackPayload).eq('id', editTeacher.id)
           error = retry.error
           if (!error) {
-            alert('El docente se guardÃ³, pero falta aplicar la migraciÃ³n para usar el margen de tardanza personalizado.')
+            alert('El docente se guardo, pero falta aplicar la migracion para usar el margen de tardanza personalizado.')
           }
         }
         if (error) throw error
@@ -485,7 +534,7 @@ export default function ManageTeachers() {
   const permLabel = {
     pasar_asistencia: { label: 'Asistencia', cls: 'pasar' },
     ver_reportes:     { label: 'Reportes',   cls: 'reportes' },
-    editar_matricula: { label: 'MatrÃ­cula',  cls: 'editar' },
+    editar_matricula: { label: 'Matricula',  cls: 'editar' },
     aprobar_excusas:  { label: 'Excusas',    cls: 'pasar' },
   }
 
@@ -522,7 +571,7 @@ export default function ManageTeachers() {
 
           <div className="mt-table-wrap">
             {loading ? (
-              <div className="mt-loading"><span className="mt-spin">âŸ³</span> Cargando docentes...</div>
+              <div className="mt-loading">Cargando docentes...</div>
             ) : (
               <>
                 <table className="mt-table">
@@ -541,7 +590,7 @@ export default function ManageTeachers() {
                         <div className="mt-empty">
                           {search || filterPerm
                             ? 'No se encontraron docentes con esos filtros'
-                            : 'No hay docentes registrados. Â¡Agrega el primero!'}
+                            : 'No hay docentes registrados. Agrega el primero.'}
                         </div>
                       </td></tr>
                     ) : (
@@ -633,17 +682,17 @@ export default function ManageTeachers() {
             <div className="mt-modal" style={{maxWidth:400}} onClick={e => e.stopPropagation()}>
               <div className="mt-modal-header">
                 <div className="mt-modal-title">Eliminar docente</div>
-                <button className="mt-modal-close" onClick={() => setDeleteTeacher(null)}>Ã—</button>
+                <button type="button" aria-label="Cerrar modal" className="mt-modal-close" onClick={() => setDeleteTeacher(null)}>x</button>
               </div>
               <div className="mt-modal-body">
                 <p style={{fontSize:14, color:'#4A6A8A', lineHeight:1.6}}>
-                  Â¿EstÃ¡s seguro que deseas eliminar a <strong style={{color:'#102847'}}>{deleteTeacher.full_name}</strong>?
-                  PerderÃ¡ acceso al sistema.
+                  Estas seguro que deseas eliminar a <strong style={{color:'#102847'}}>{deleteTeacher.full_name}</strong>?
+                  Perdera acceso al sistema.
                 </p>
               </div>
               <div className="mt-modal-footer">
                 <button className="mt-btn-cancel" onClick={() => setDeleteTeacher(null)}>Cancelar</button>
-                <button className="mt-btn-danger" onClick={handleDelete}>SÃ­, eliminar</button>
+                <button className="mt-btn-danger" onClick={handleDelete}>Si, eliminar</button>
               </div>
             </div>
           </div>

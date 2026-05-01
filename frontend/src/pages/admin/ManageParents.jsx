@@ -12,6 +12,13 @@ import IdentityBubble from '../../components/ui/IdentityBubble'
 import AdminSidebarProfileCard from '../../components/layout/AdminSidebarProfileCard'
 import { createManagedUser } from '../../api/backendApi'
 import BrandLogo from '../../components/ui/BrandLogo'
+import {
+  MAX_EMAIL_LENGTH,
+  formatDominicanPhone,
+  normalizeEmail,
+  validateDominicanPhone,
+  validateEmail,
+} from '../../utils/formValidation'
 
 // â”€â”€â”€ Paleta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const C = {
@@ -117,6 +124,8 @@ const STYLES = `
   .mp-label span { color:${C.mid}; font-weight:400; font-size:12px; }
   .mp-input, .mp-select { width:100%; padding:9px 12px; border-radius:8px; border:1px solid ${C.border}; font-size:14px; color:${C.dark}; font-family:'DM Sans',sans-serif; outline:none; transition:border 0.18s; background:#fff; box-sizing:border-box; }
   .mp-input:focus, .mp-select:focus { border-color:${C.navy}; }
+  .mp-input.invalid { border-color:#dc2626; background:#fff7f7; }
+  .mp-error { color:#dc2626; font-size:11px; line-height:1.4; margin-top:6px; }
   .mp-row2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 
   /* SecciÃ³n vincular hijos */
@@ -186,6 +195,7 @@ export default function ManageParents() {
 
   // Form crear/editar
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', relacion: 'padre' })
+  const [formErrors, setFormErrors] = useState({})
   const [editId, setEditId]         = useState(null)  // profile_id del padre en ediciÃ³n
   const [newPwd, setNewPwd]         = useState('')
 
@@ -209,6 +219,31 @@ export default function ManageParents() {
     void loadParents()
     void loadStudents()
   }, [activeSchoolId])
+
+  function setFormField(field, value) {
+    const nextValue = field === 'phone' ? formatDominicanPhone(value) : value
+    setForm((current) => ({ ...current, [field]: nextValue }))
+    setFormErrors((current) => ({ ...current, [field]: '' }))
+  }
+
+  function validateParentForm({ requireEmail = true } = {}) {
+    const normalized = {
+      ...form,
+      full_name: form.full_name.trim(),
+      email: normalizeEmail(form.email),
+      phone: formatDominicanPhone(form.phone),
+    }
+    const nextErrors = {
+      full_name: normalized.full_name ? '' : 'El nombre completo es obligatorio.',
+      email: requireEmail ? validateEmail(normalized.email, 'correo electronico') : '',
+      phone: validateDominicanPhone(normalized.phone),
+    }
+
+    setForm(normalized)
+    setFormErrors(nextErrors)
+
+    return Object.values(nextErrors).every((message) => !message) ? normalized : null
+  }
 
   function injectStyles() {
     if (document.getElementById('mp-styles')) return
@@ -347,9 +382,8 @@ export default function ManageParents() {
   // â”€â”€ Crear padre â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function handleCreate(e) {
     e.preventDefault()
-    if (!form.full_name.trim() || !form.email.trim()) {
-      toast('Nombre y correo son obligatorios.', 'error'); return
-    }
+    const validForm = validateParentForm()
+    if (!validForm) return
     setSaving(true)
     const pwd = genPassword()
     setNewPwd(pwd)
@@ -358,9 +392,9 @@ export default function ManageParents() {
       await createManagedUser({
         role: 'parent',
         school_id: activeSchoolId,
-        full_name: form.full_name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
+        full_name: validForm.full_name,
+        email: validForm.email,
+        phone: validForm.phone,
         password: pwd,
       })
       toast(`Padre/tutor creado. Contrasena: ${pwd}`, 'success')
@@ -378,12 +412,13 @@ export default function ManageParents() {
   // â”€â”€ Editar padre â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function handleEdit(e) {
     e.preventDefault()
-    if (!form.full_name.trim()) { toast('El nombre es obligatorio.', 'error'); return }
+    const validForm = validateParentForm({ requireEmail: false })
+    if (!validForm) return
     setSaving(true)
     try {
       const { error } = await supabase.from('profiles').update({
-        full_name: form.full_name.trim(),
-        phone:     form.phone.trim(),
+        full_name: validForm.full_name,
+        phone:     validForm.phone,
       }).eq('id', editId)
       if (error) throw error
       toast('Datos actualizados correctamente.', 'success')
@@ -471,13 +506,15 @@ export default function ManageParents() {
   // â”€â”€ Helpers de modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function openCreate() {
     setForm({ full_name: '', email: '', phone: '', relacion: 'padre' })
+    setFormErrors({})
     setEditId(null)
     setNewPwd('')
     setModal('create')
   }
 
   function openEdit(parent) {
-    setForm({ full_name: parent.full_name, email: parent.email, phone: parent.phone || '', relacion: 'padre' })
+    setForm({ full_name: parent.full_name, email: parent.email, phone: formatDominicanPhone(parent.phone || ''), relacion: 'padre' })
+    setFormErrors({})
     setEditId(parent.id)
     setModal('edit')
   }
@@ -489,6 +526,7 @@ export default function ManageParents() {
 
   function closeModal() {
     setModal(null)
+    setFormErrors({})
     setDeleteTarget(null)
     setEditId(null)
     setNewPwd('')
@@ -560,7 +598,7 @@ export default function ManageParents() {
                   <tr>
                     <th>Nombre</th>
                     <th>Correo</th>
-                    <th>TelÃ©fono</th>
+                    <th>Telefono</th>
                     <th>Hijos vinculados</th>
                     <th>Acciones</th>
                   </tr>
@@ -620,20 +658,23 @@ export default function ManageParents() {
               <div className="mp-modal-body">
                 <div className="mp-field">
                   <label className="mp-label">Nombre completo *</label>
-                  <input className="mp-input" placeholder="Ej: MarÃ­a GonzÃ¡lez" value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} autoFocus />
+                  <input className={`mp-input${formErrors.full_name ? ' invalid' : ''}`} placeholder="Ej: Maria Gonzalez" maxLength={90} value={form.full_name} onChange={e => setFormField('full_name', e.target.value)} autoFocus />
+                  {formErrors.full_name && <div className="mp-error">{formErrors.full_name}</div>}
                 </div>
                 <div className="mp-row2">
                   <div className="mp-field">
-                    <label className="mp-label">Correo electrÃ³nico *</label>
-                    <input className="mp-input" type="email" placeholder="correo@ejemplo.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                    <label className="mp-label">Correo electronico *</label>
+                    <input className={`mp-input${formErrors.email ? ' invalid' : ''}`} type="email" placeholder="correo@ejemplo.com" autoComplete="email" maxLength={MAX_EMAIL_LENGTH} value={form.email} onChange={e => setFormField('email', e.target.value)} />
+                    {formErrors.email && <div className="mp-error">{formErrors.email}</div>}
                   </div>
                   <div className="mp-field">
-                    <label className="mp-label">TelÃ©fono <span>(opcional)</span></label>
-                    <input className="mp-input" placeholder="809-000-0000" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+                    <label className="mp-label">Telefono <span>(opcional)</span></label>
+                    <input className={`mp-input${formErrors.phone ? ' invalid' : ''}`} placeholder="809-000-0000" autoComplete="tel" inputMode="tel" maxLength={12} value={form.phone} onChange={e => setFormField('phone', e.target.value)} />
+                    {formErrors.phone && <div className="mp-error">{formErrors.phone}</div>}
                   </div>
                 </div>
                 <div className="mp-field">
-                  <label className="mp-label">RelaciÃ³n con el estudiante</label>
+                  <label className="mp-label">Relacion con el estudiante</label>
                   <select className="mp-select" value={form.relacion} onChange={e => setForm(f => ({ ...f, relacion: e.target.value }))}>
                     <option value="padre">Padre</option>
                     <option value="madre">Madre</option>
@@ -643,7 +684,7 @@ export default function ManageParents() {
                   </select>
                 </div>
                 <p style={{ fontSize: 12, color: C.mid, background: C.skyLight, padding: '10px 12px', borderRadius: 8 }}>
-                  Se generarÃ¡ una contraseÃ±a temporal automÃ¡ticamente. DeberÃ¡s compartirla con el padre/tutor.
+                  Se generara una contrasena temporal automaticamente. Deberas compartirla con el padre/tutor.
                 </p>
               </div>
               <div className="mp-modal-foot">
@@ -694,15 +735,17 @@ export default function ManageParents() {
               <div className="mp-modal-body">
                 <div className="mp-field">
                   <label className="mp-label">Nombre completo *</label>
-                  <input className="mp-input" value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} autoFocus />
+                  <input className={`mp-input${formErrors.full_name ? ' invalid' : ''}`} maxLength={90} value={form.full_name} onChange={e => setFormField('full_name', e.target.value)} autoFocus />
+                  {formErrors.full_name && <div className="mp-error">{formErrors.full_name}</div>}
                 </div>
                 <div className="mp-field">
                   <label className="mp-label">Correo <span>(no editable)</span></label>
                   <input className="mp-input" value={form.email} disabled style={{ opacity: 0.6, cursor: 'not-allowed' }} />
                 </div>
                 <div className="mp-field">
-                  <label className="mp-label">TelÃ©fono</label>
-                  <input className="mp-input" placeholder="809-000-0000" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+                  <label className="mp-label">Telefono</label>
+                  <input className={`mp-input${formErrors.phone ? ' invalid' : ''}`} placeholder="809-000-0000" autoComplete="tel" inputMode="tel" maxLength={12} value={form.phone} onChange={e => setFormField('phone', e.target.value)} />
+                  {formErrors.phone && <div className="mp-error">{formErrors.phone}</div>}
                 </div>
               </div>
               <div className="mp-modal-foot">
