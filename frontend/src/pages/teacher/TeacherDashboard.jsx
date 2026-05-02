@@ -1484,13 +1484,14 @@ export default function TeacherDashboard() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  accept="image/*"
+                  capture="environment"
                   onChange={handleQrFileUpload}
                   style={{ display: 'none' }}
                 />
 
                 <div style={{ marginTop: 10, fontSize: 12, color: C.mid }}>
-                  Si tu webcam falla, puedes subir una captura o foto del QR para probar el registro.
+                  En celular este boton abre la camara trasera para tomar una foto del QR.
                 </div>
 
                 {scanning && activeCameraLabel && (
