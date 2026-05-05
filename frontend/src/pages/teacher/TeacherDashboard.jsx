@@ -291,6 +291,25 @@ const STYLES = `
   .td-badge.tarde     { background:#fef9c3; color:#854d0e; }
   .td-badge.ausente   { background:#fee2e2; color:#991b1b; }
   .td-badge.justificado { background:#ede9fe; color:#5b21b6; }
+  .td-status-select {
+    min-width: 138px; min-height: 36px;
+    padding: 0 34px 0 12px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px; font-weight: 800;
+    outline: none; cursor: pointer;
+    appearance: none;
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 10px;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  }
+  .td-status-select:disabled { opacity: .65; cursor: not-allowed; }
+  .td-status-select.presente { background-color:#dcfce7; color:#166534; border-color:#bbf7d0; }
+  .td-status-select.tarde { background-color:#fef9c3; color:#854d0e; border-color:#fde68a; }
+  .td-status-select.ausente { background-color:#fee2e2; color:#991b1b; border-color:#fecaca; }
+  .td-status-select.justificado { background-color:#ede9fe; color:#5b21b6; border-color:#ddd6fe; }
   .td-empty { text-align:center; padding:40px 20px; color:${C.mid}; font-size:14px; }
 
   /* Toast interno */
@@ -505,6 +524,22 @@ async function scanCanvasWithBarcodeDetector(canvas) {
   }
 }
 
+const ATTENDANCE_STATUS_OPTIONS = [
+  { value: 'presente', label: 'Presente' },
+  { value: 'tarde', label: 'Tarde' },
+  { value: 'ausente', label: 'Ausente' },
+  { value: 'justificado', label: 'Justificado' },
+]
+
+function calculateAttendanceStats(list) {
+  return {
+    presentes: list.filter(r => r.estado === 'presente').length,
+    tardanzas: list.filter(r => r.estado === 'tarde').length,
+    ausentes: list.filter(r => r.estado === 'ausente').length,
+    total: list.length,
+  }
+}
+
 function scanCanvasWithJsQr(canvas) {
   try {
     const context = canvas.getContext('2d', { willReadFrequently: true })
@@ -656,6 +691,7 @@ export default function TeacherDashboard() {
   const [, setSecciones] = useState([])
   const [attendanceList, setAttendanceList] = useState([])
   const [loadingList, setLoadingList] = useState(false)
+  const [savingAttendanceStatus, setSavingAttendanceStatus] = useState('')
   const [filterEstado, setFilterEstado] = useState('todos')
   const [filterSearch, setFilterSearch] = useState('')
   const [stats, setStats] = useState({ presentes: 0, tardanzas: 0, ausentes: 0, total: 0 })
@@ -768,14 +804,7 @@ export default function TeacherDashboard() {
     const { data } = await query
     const list = data || []
     setAttendanceList(list)
-
-    // Stats
-    setStats({
-      presentes:  list.filter(r => r.estado === 'presente').length,
-      tardanzas:  list.filter(r => r.estado === 'tarde').length,
-      ausentes:   list.filter(r => r.estado === 'ausente').length,
-      total:      list.length,
-    })
+    setStats(calculateAttendanceStats(list))
     setLoadingList(false)
   }
 
@@ -1310,6 +1339,42 @@ export default function TeacherDashboard() {
   }
 
   // ── Filtrar lista ────────────────────────────────────────
+  async function handleAttendanceStatusChange(record, nextEstado) {
+    if (!record?.id || record.estado === nextEstado) return
+
+    const previousEstado = record.estado
+    setSavingAttendanceStatus(record.id)
+
+    try {
+      const { data, error } = await supabase
+        .from('attendance')
+        .update({ estado: nextEstado })
+        .eq('id', record.id)
+        .select(`*, students(id, nombre, matricula, grade_section_id, grade_sections:grade_section_id(grado, seccion))`)
+        .single()
+
+      if (error) throw error
+
+      const updatedRecord = data || { ...record, estado: nextEstado }
+      const nextList = attendanceList.map(item => item.id === record.id ? updatedRecord : item)
+      setAttendanceList(nextList)
+      setStats(calculateAttendanceStats(nextList))
+
+      registrarAudit('editar_estado_asistencia', 'attendance', record.id, {
+        from: previousEstado,
+        to: nextEstado,
+        student_id: record.student_id,
+      })
+
+      toast(`Estado actualizado a ${nextEstado}.`, 'success')
+    } catch (err) {
+      console.error(err)
+      toast(err.message || 'No se pudo actualizar el estado.', 'error')
+    } finally {
+      setSavingAttendanceStatus('')
+    }
+  }
+
   const listaFiltrada = attendanceList.filter(r => {
     const matchEstado = filterEstado === 'todos' || r.estado === filterEstado
     const nombre = r.students?.nombre?.toLowerCase() || ''
@@ -1548,13 +1613,16 @@ export default function TeacherDashboard() {
                           </td>
                           <td style={{ fontSize: 13, color: C.mid }}>{r.hora_entrada || '—'}</td>
                           <td>
-                            <span className={`td-badge ${r.estado}`}>
-                              {r.estado === 'presente'    && <IcoCheck />}
-                              {r.estado === 'tarde'       && <IcoClock />}
-                              {r.estado === 'ausente'     && <IcoX />}
-                              {r.estado === 'justificado' && '✓'}
-                              {r.estado}
-                            </span>
+                            <select
+                              className={`td-status-select ${r.estado || 'presente'}`}
+                              value={r.estado || 'presente'}
+                              disabled={savingAttendanceStatus === r.id}
+                              onChange={event => handleAttendanceStatusChange(r, event.target.value)}
+                            >
+                              {ATTENDANCE_STATUS_OPTIONS.map(option => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                              ))}
+                            </select>
                           </td>
                         </tr>
                       ))}
@@ -1624,13 +1692,16 @@ export default function TeacherDashboard() {
                           <td style={{ fontSize: 13 }}>{r.hora_entrada || '—'}</td>
                           <td style={{ fontSize: 13, color: C.mid }}>{r.hora_salida || '—'}</td>
                           <td>
-                            <span className={`td-badge ${r.estado}`}>
-                              {r.estado === 'presente'    && <IcoCheck />}
-                              {r.estado === 'tarde'       && <IcoClock />}
-                              {r.estado === 'ausente'     && <IcoX />}
-                              {r.estado === 'justificado' && '✓'}
-                              {r.estado}
-                            </span>
+                            <select
+                              className={`td-status-select ${r.estado || 'presente'}`}
+                              value={r.estado || 'presente'}
+                              disabled={savingAttendanceStatus === r.id}
+                              onChange={event => handleAttendanceStatusChange(r, event.target.value)}
+                            >
+                              {ATTENDANCE_STATUS_OPTIONS.map(option => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                              ))}
+                            </select>
                           </td>
                         </tr>
                       ))}
