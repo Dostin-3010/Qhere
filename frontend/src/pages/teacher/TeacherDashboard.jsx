@@ -310,6 +310,19 @@ const STYLES = `
   .td-status-select.tarde { background-color:#fef9c3; color:#854d0e; border-color:#fde68a; }
   .td-status-select.ausente { background-color:#fee2e2; color:#991b1b; border-color:#fecaca; }
   .td-status-select.justificado { background-color:#ede9fe; color:#5b21b6; border-color:#ddd6fe; }
+  .td-row-actions { display:flex; justify-content:flex-end; gap:8px; }
+  .td-icon-btn {
+    min-width:36px; height:36px; padding:0 10px;
+    border-radius:12px; border:1px solid ${C.border};
+    background:#fff; color:${C.mid}; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    font-family:'DM Sans', sans-serif; font-size:12px; font-weight:800;
+    transition:all .18s ease;
+  }
+  .td-icon-btn:hover { transform:translateY(-1px); border-color:${C.navy}; color:${C.navy}; }
+  .td-icon-btn.danger { border-color:#fecaca; background:#fff1f2; color:#991b1b; }
+  .td-icon-btn.danger:hover { background:#fee2e2; border-color:#ef4444; color:#b91c1c; }
+  .td-icon-btn:disabled { opacity:.55; cursor:not-allowed; transform:none; }
   .td-empty { text-align:center; padding:40px 20px; color:${C.mid}; font-size:14px; }
 
   /* Toast interno */
@@ -692,6 +705,7 @@ export default function TeacherDashboard() {
   const [attendanceList, setAttendanceList] = useState([])
   const [loadingList, setLoadingList] = useState(false)
   const [savingAttendanceStatus, setSavingAttendanceStatus] = useState('')
+  const [deletingAttendanceId, setDeletingAttendanceId] = useState('')
   const [filterEstado, setFilterEstado] = useState('todos')
   const [filterSearch, setFilterSearch] = useState('')
   const [stats, setStats] = useState({ presentes: 0, tardanzas: 0, ausentes: 0, total: 0 })
@@ -1375,6 +1389,41 @@ export default function TeacherDashboard() {
     }
   }
 
+  async function handleDeleteAttendanceRecord(record) {
+    if (!record?.id) return
+
+    const studentName = record.students?.nombre || 'este estudiante'
+    const confirmed = window.confirm(`Eliminar el registro de asistencia de ${studentName}? Esta accion no se puede deshacer.`)
+    if (!confirmed) return
+
+    setDeletingAttendanceId(record.id)
+
+    try {
+      await registrarAudit('eliminar_registro_asistencia', 'attendance', record.id, {
+        student_id: record.student_id,
+        estado: record.estado,
+        fecha: record.fecha,
+      })
+
+      const { error } = await supabase
+        .from('attendance')
+        .delete()
+        .eq('id', record.id)
+
+      if (error) throw error
+
+      const nextList = attendanceList.filter(item => item.id !== record.id)
+      setAttendanceList(nextList)
+      setStats(calculateAttendanceStats(nextList))
+      toast('Registro eliminado.', 'success')
+    } catch (err) {
+      console.error(err)
+      toast(err.message || 'No se pudo eliminar el registro.', 'error')
+    } finally {
+      setDeletingAttendanceId('')
+    }
+  }
+
   const listaFiltrada = attendanceList.filter(r => {
     const matchEstado = filterEstado === 'todos' || r.estado === filterEstado
     const nombre = r.students?.nombre?.toLowerCase() || ''
@@ -1602,6 +1651,7 @@ export default function TeacherDashboard() {
                         <th>Estudiante</th>
                         <th>Hora</th>
                         <th>Estado</th>
+                        <th style={{ textAlign: 'right' }}>Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1616,13 +1666,28 @@ export default function TeacherDashboard() {
                             <select
                               className={`td-status-select ${r.estado || 'presente'}`}
                               value={r.estado || 'presente'}
-                              disabled={savingAttendanceStatus === r.id}
+                              disabled={savingAttendanceStatus === r.id || deletingAttendanceId === r.id}
                               onChange={event => handleAttendanceStatusChange(r, event.target.value)}
                             >
                               {ATTENDANCE_STATUS_OPTIONS.map(option => (
                                 <option key={option.value} value={option.value}>{option.label}</option>
                               ))}
                             </select>
+                          </td>
+                          <td>
+                            <div className="td-row-actions">
+                              <button
+                                type="button"
+                                className="td-icon-btn danger"
+                                title="Eliminar registro"
+                                aria-label={`Eliminar registro de ${r.students?.nombre || 'estudiante'}`}
+                                disabled={deletingAttendanceId === r.id || savingAttendanceStatus === r.id}
+                                onClick={() => handleDeleteAttendanceRecord(r)}
+                              >
+                                <IcoX />
+                                Eliminar
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1675,6 +1740,7 @@ export default function TeacherDashboard() {
                         <th>Entrada</th>
                         <th>Salida</th>
                         <th>Estado</th>
+                        <th style={{ textAlign: 'right' }}>Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1695,13 +1761,28 @@ export default function TeacherDashboard() {
                             <select
                               className={`td-status-select ${r.estado || 'presente'}`}
                               value={r.estado || 'presente'}
-                              disabled={savingAttendanceStatus === r.id}
+                              disabled={savingAttendanceStatus === r.id || deletingAttendanceId === r.id}
                               onChange={event => handleAttendanceStatusChange(r, event.target.value)}
                             >
                               {ATTENDANCE_STATUS_OPTIONS.map(option => (
                                 <option key={option.value} value={option.value}>{option.label}</option>
                               ))}
                             </select>
+                          </td>
+                          <td>
+                            <div className="td-row-actions">
+                              <button
+                                type="button"
+                                className="td-icon-btn danger"
+                                title="Eliminar registro"
+                                aria-label={`Eliminar registro de ${r.students?.nombre || 'estudiante'}`}
+                                disabled={deletingAttendanceId === r.id || savingAttendanceStatus === r.id}
+                                onClick={() => handleDeleteAttendanceRecord(r)}
+                              >
+                                <IcoX />
+                                Eliminar
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
