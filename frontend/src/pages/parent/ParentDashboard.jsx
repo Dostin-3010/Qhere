@@ -197,6 +197,10 @@ function buildAlertText(alert) {
     return `${studentName} acumula ${payload.late_count_last_30_days || 3} tardanzas en los ultimos 30 dias. Fecha reciente: ${date}.`
   }
 
+  if (alert.template_key === 'attendance_late') {
+    return `${studentName} fue marcado como tarde el ${date}.`
+  }
+
   if (alert.template_key === 'attendance_absence') {
     return `${studentName} fue marcado como ausente el ${date}. Puedes enviar una excusa si aplica.`
   }
@@ -377,7 +381,7 @@ export default function ParentDashboard() {
         .select('*')
         .eq('recipient_id', profile.id)
         .eq('student_id', studentId)
-        .in('template_key', ['attendance_absence', 'attendance_late_recurrence'])
+        .in('template_key', ['attendance_absence', 'attendance_late', 'attendance_late_recurrence'])
         .order('created_at', { ascending: false })
         .limit(20)
 
@@ -668,7 +672,7 @@ export default function ParentDashboard() {
                         <div className="pd-card-head">
                           <div>
                             <h3>Alertas de asistencia</h3>
-                            <p>Notificaciones por ausencia o tardanza recurrente</p>
+                            <p>Notificaciones por ausencia o tardanza</p>
                           </div>
                         </div>
                         <div className="pd-card-body">
@@ -678,6 +682,7 @@ export default function ParentDashboard() {
                             <div className="pd-alert-list">
                               {alerts.map(alert => {
                                 const isAbsence = alert.template_key === 'attendance_absence'
+                                const isRecurrentLate = alert.template_key === 'attendance_late_recurrence'
                                 const channels = [...new Set(alert.channels || [alert.channel])].filter(Boolean)
                                 const statuses = [...new Set(alert.statuses || [alert.status])].filter(Boolean)
 
@@ -685,14 +690,14 @@ export default function ParentDashboard() {
                                   <div key={`${alert.id}:${alert.template_key}`} className={`pd-alert-item${isAbsence ? ' urgent' : ''}`}>
                                     <div className="pd-alert-top">
                                       <div className="pd-alert-title">
-                                        {alert.subject || (isAbsence ? 'Ausencia registrada' : 'Tardanza recurrente')}
+                                        {alert.subject || (isAbsence ? 'Ausencia registrada' : (isRecurrentLate ? 'Tardanza recurrente' : 'Tardanza registrada'))}
                                       </div>
                                       <div className="pd-alert-date">{formatDateTime(alert.created_at)}</div>
                                     </div>
                                     <div className="pd-alert-copy">{buildAlertText(alert)}</div>
                                     <div className="pd-alert-meta">
                                       <span className={`pd-alert-chip${isAbsence ? ' danger' : ' warn'}`}>
-                                        {isAbsence ? 'Ausencia' : 'Recurrente'}
+                                        {isAbsence ? 'Ausencia' : (isRecurrentLate ? 'Recurrente' : 'Tarde')}
                                       </span>
                                       {channels.map(channel => (
                                         <span key={channel} className="pd-alert-chip">{CHANNEL_LABEL[channel] || channel}</span>

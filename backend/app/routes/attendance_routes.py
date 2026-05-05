@@ -687,24 +687,28 @@ def _queue_attendance_alerts(student, attendance, fecha, geo_meta=None):
         return None
 
     recent_counts = _recent_attendance_counts(student['id'], fecha)
-    alert_type = None
-    subject = None
+    student_name = student.get('nombre') or 'Estudiante'
     priority = 7
 
     if status == 'ausente':
         alert_type = 'absence'
-        subject = f'Ausencia registrada: {student.get("nombre") or "Estudiante"}'
+        subject = f'Ausencia registrada: {student_name}'
+        message = f'Se registro una ausencia para {student_name} el {fecha}. Puedes enviar una excusa si aplica.'
         priority = 8
-    elif recent_counts['tarde'] >= 3:
-        alert_type = 'late_recurrence'
-        subject = f'Tardanza recurrente: {student.get("nombre") or "Estudiante"}'
-        priority = 7
-
-    if not alert_type:
-        return None
+    else:
+        is_recurrent_late = recent_counts['tarde'] >= 3
+        alert_type = 'late_recurrence' if is_recurrent_late else 'late'
+        subject = (
+            f'Tardanza recurrente: {student_name}'
+            if is_recurrent_late
+            else f'Tardanza registrada: {student_name}'
+        )
+        message = f'Se registro una tardanza para {student_name} el {fecha}.'
+        if is_recurrent_late:
+            message += f' Acumula {recent_counts["tarde"]} tardanzas en los ultimos 30 dias.'
 
     base_payload = {
-        'student_name': student.get('nombre'),
+        'student_name': student_name,
         'student_code': student.get('matricula'),
         'attendance_date': fecha,
         'attendance_status': status,
@@ -712,9 +716,12 @@ def _queue_attendance_alerts(student, attendance, fecha, geo_meta=None):
         'absence_count_last_30_days': recent_counts['ausente'],
         'geo_outside_perimeter': bool((geo_meta or {}).get('outside_perimeter')),
         'attendance_id': attendance.get('id'),
+        'message': message,
+        'body': message,
     }
 
     queue_rows = []
+    direct_email_results = []
     for recipient in recipients:
         channels = []
         if recipient.get('email'):
@@ -723,7 +730,7 @@ def _queue_attendance_alerts(student, attendance, fecha, geo_meta=None):
             channels.append('whatsapp')
 
         for channel in channels:
-            queue_rows.append({
+            row = {
                 'recipient_id': recipient['id'],
                 'student_id': student['id'],
                 'related_table': 'attendance',
@@ -740,7 +747,39 @@ def _queue_attendance_alerts(student, attendance, fecha, geo_meta=None):
                 'priority': priority,
                 'status': 'pending',
                 'scheduled_for': datetime.utcnow().isoformat(),
-            })
+            }
+
+            if channel == 'email':
+                body_lines = [
+                    f'Hola {recipient.get("full_name") or "familia"},',
+                    '',
+                    message,
+                    '',
+                    f'Estudiante: {student_name}',
+                    f'Matricula: {student.get("matricula") or "-"}',
+                    f'Estado: {_status_label(status)}',
+                    f'Fecha: {fecha}',
+                    '',
+                    'QHere - Control de Asistencia',
+                ]
+                try:
+                    from ..services.notification_service import send_direct_email
+                    delivery = send_direct_email(recipient['email'], subject, body_lines)
+                    direct_email_results.append(delivery)
+                    if delivery.get('channel') == 'email':
+                        row['status'] = 'sent'
+                        row['sent_at'] = datetime.utcnow().isoformat()
+                    else:
+                        row['error_message'] = delivery.get('fallback_reason')
+                except Exception as exc:
+                    direct_email_results.append({
+                        'channel': 'email',
+                        'recipient_email': recipient.get('email'),
+                        'status': 'queued',
+                        'error': str(exc),
+                    })
+
+            queue_rows.append(row)
 
     if not queue_rows:
         return None
@@ -753,8 +792,102 @@ def _queue_attendance_alerts(student, attendance, fecha, geo_meta=None):
     return {
         'type': alert_type,
         'queued': len(queue_rows),
+        'direct_email': direct_email_results,
         'recent_counts': recent_counts,
     }
+
+
+@attendance_bp.route('/<attendance_id>/status', methods=['POST', 'PATCH'])
+def update_attendance_status(attendance_id):
+    try:
+        user_id = _current_user()
+        payload = request.get_json() or {}
+        next_status = (payload.get('estado') or payload.get('status') or '').strip().lower()
+        valid_statuses = {'presente', 'tarde', 'ausente', 'justificado'}
+
+        if next_status not in valid_statuses:
+            return jsonify({'error': 'Estado de asistencia no valido.'}), 400
+
+        profile = _get_profile(user_id)
+        role = (profile.get('role') or '').strip().lower()
+        if role not in ['admin', 'teacher']:
+            raise PermissionError('No tienes permiso para modificar este registro.')
+
+        attendance_result = supabase.table('attendance') \
+            .select('*') \
+            .eq('id', attendance_id) \
+            .single() \
+            .execute()
+        attendance = attendance_result.data or {}
+        if not attendance:
+            return jsonify({'error': 'Registro de asistencia no encontrado.'}), 404
+
+        student = _get_student(attendance.get('student_id'))
+        if not student:
+            return jsonify({'error': 'Estudiante del registro no encontrado.'}), 404
+
+        if role == 'teacher':
+            assigned_sections = profile.get('secciones_ids') if isinstance(profile.get('secciones_ids'), list) else []
+            assigned_sections = {str(section_id) for section_id in assigned_sections if section_id}
+            owns_record = str(attendance.get('teacher_id') or '') == str(user_id)
+            owns_section = str(student.get('grade_section_id') or '') in assigned_sections
+            if not owns_record and not owns_section:
+                raise PermissionError('No puedes modificar asistencia de este estudiante.')
+
+        previous_status = (attendance.get('estado') or '').strip().lower()
+        if previous_status == next_status:
+            return jsonify({
+                'action': 'unchanged',
+                'attendance': attendance,
+                'student': student,
+                'message': 'El estado ya tenia ese valor.',
+            }), 200
+
+        update_result = supabase.table('attendance') \
+            .update({'estado': next_status}) \
+            .eq('id', attendance_id) \
+            .execute()
+        updated_rows = update_result.data or []
+        updated_attendance = {**attendance, **(updated_rows[0] if updated_rows else {'estado': next_status})}
+
+        alert_meta = None
+        if next_status in ['ausente', 'tarde']:
+            alert_meta = _queue_attendance_alerts(
+                student,
+                updated_attendance,
+                updated_attendance.get('fecha') or datetime.utcnow().date().isoformat(),
+            )
+
+        _insert_audit(user_id, 'editar_estado_asistencia', attendance_id, {
+            'from': previous_status,
+            'to': next_status,
+            'student_id': attendance.get('student_id'),
+            'alerts_queued': alert_meta.get('queued') if alert_meta else 0,
+        })
+
+        try:
+            shaped_result = supabase.table('attendance') \
+                .select('*, students:student_id(id, nombre, matricula, grade_section_id, grade_sections:grade_section_id(grado, seccion))') \
+                .eq('id', attendance_id) \
+                .single() \
+                .execute()
+            updated_attendance = shaped_result.data or updated_attendance
+        except Exception:
+            updated_attendance = {**updated_attendance, 'students': student}
+
+        return jsonify({
+            'action': 'updated',
+            'attendance': updated_attendance,
+            'student': student,
+            'alert': alert_meta,
+            'message': 'Estado actualizado correctamente.',
+        }), 200
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 401
+    except PermissionError as exc:
+        return jsonify({'error': str(exc)}), 403
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
 
 
 def _append_warning(message, geo_meta):

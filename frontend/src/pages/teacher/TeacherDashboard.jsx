@@ -1356,31 +1356,19 @@ export default function TeacherDashboard() {
   async function handleAttendanceStatusChange(record, nextEstado) {
     if (!record?.id || record.estado === nextEstado) return
 
-    const previousEstado = record.estado
     setSavingAttendanceStatus(record.id)
 
     try {
-      const { data, error } = await supabase
-        .from('attendance')
-        .update({ estado: nextEstado })
-        .eq('id', record.id)
-        .select(`*, students(id, nombre, matricula, grade_section_id, grade_sections:grade_section_id(grado, seccion))`)
-        .single()
+      const result = await postWithSupabaseSession(`/attendance/${record.id}/status`, { estado: nextEstado })
 
-      if (error) throw error
-
-      const updatedRecord = data || { ...record, estado: nextEstado }
+      const updatedRecord = result?.attendance || { ...record, estado: nextEstado }
       const nextList = attendanceList.map(item => item.id === record.id ? updatedRecord : item)
       setAttendanceList(nextList)
       setStats(calculateAttendanceStats(nextList))
 
-      registrarAudit('editar_estado_asistencia', 'attendance', record.id, {
-        from: previousEstado,
-        to: nextEstado,
-        student_id: record.student_id,
-      })
-
-      toast(`Estado actualizado a ${nextEstado}.`, 'success')
+      const alertQueued = result?.alert?.queued || 0
+      const deliveryMessage = alertQueued > 0 ? ' Correo al padre vinculado en proceso.' : ''
+      toast(`Estado actualizado a ${nextEstado}.${deliveryMessage}`, 'success')
     } catch (err) {
       console.error(err)
       toast(err.message || 'No se pudo actualizar el estado.', 'error')
