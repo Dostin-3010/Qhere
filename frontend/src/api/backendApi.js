@@ -78,6 +78,13 @@ export function createManagedUser(payload) {
   })
 }
 
+export function fetchManagedUsers({ role } = {}) {
+  const params = new URLSearchParams()
+  if (role) params.set('role', role)
+  const suffix = params.toString() ? `?${params.toString()}` : ''
+  return apiRequest(`/api/management/users${suffix}`)
+}
+
 export function fetchSuperAdminOverview() {
   return apiRequest('/api/management/super-admin/overview')
 }

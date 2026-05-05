@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import IdentityBubble from '../../components/ui/IdentityBubble'
 import AdminSidebarProfileCard from '../../components/layout/AdminSidebarProfileCard'
 import BrandLogo from '../../components/ui/BrandLogo'
-import { createManagedUser } from '../../api/backendApi'
+import { createManagedUser, fetchManagedUsers } from '../../api/backendApi'
 import {
   MAX_EMAIL_LENGTH,
   formatDominicanPhone,
@@ -455,13 +455,13 @@ export default function ManageTeachers() {
 
     setLoading(true)
     try {
-      const [{ data: profs }, { data: secs }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('role', 'teacher').order('full_name'),
+      const [managedUsers, { data: secs }] = await Promise.all([
+        fetchManagedUsers({ role: 'teacher' }),
         supabase.from('grade_sections').select('*').eq('school_id', activeSchoolId).order('grado').order('seccion'),
       ])
 
       const scopedSectionIds = new Set((secs ?? []).map(section => section.id))
-      const scopedTeachers = (profs ?? []).filter(teacher =>
+      const scopedTeachers = (managedUsers.users ?? []).filter(teacher =>
         teacher.approval_status !== 'rejected' &&
         (
           teacher.school_id === activeSchoolId ||

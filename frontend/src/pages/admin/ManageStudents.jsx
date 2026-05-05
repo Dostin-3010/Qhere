@@ -180,6 +180,14 @@ const styles = `
     background: #EEF6FB; color: #1B3F6B;
     border: 1px solid #C8DFF0;
   }
+  .ms-status-badge {
+    display: inline-flex; align-items: center; min-height: 28px;
+    padding: 0 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    border: 1px solid transparent;
+  }
+  .ms-status-badge.active { background: #ECFDF3; color: #166534; border-color: #BBF7D0; }
+  .ms-status-badge.inactive { background: #FFF1F2; color: #B91C1C; border-color: #FECDD3; }
 
   .ms-action-btn {
     background: none; border: none; cursor: pointer;
@@ -189,6 +197,8 @@ const styles = `
   }
   .ms-action-btn:hover.edit { background: #EEF6FB; color: #1B3F6B; }
   .ms-action-btn:hover.qr   { background: #F0FDF4; color: #1B7A3D; }
+  .ms-action-btn:hover.status-on { background: #ECFDF3; color: #166534; }
+  .ms-action-btn:hover.status-off { background: #FFF7ED; color: #9A3412; }
   .ms-action-btn:hover.del  { background: #FEF2F2; color: #ef4444; }
 
   .ms-empty {
@@ -412,6 +422,7 @@ function StudentForm({ student, secciones, onSave, onClose, loading }) {
     nombre:           student?.nombre    ?? '',
     matricula:        student?.matricula ?? '',
     grade_section_id: student?.grade_section_id ?? '',
+    activo:           student?.activo === false ? 'false' : 'true',
   })
 
   const upd = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -444,6 +455,14 @@ function StudentForm({ student, secciones, onSave, onClose, loading }) {
                   {s.grado} {s.seccion} — {s.turno === 'manana' ? 'Mañana' : s.turno === 'tarde' ? 'Tarde' : 'Noche'}
                 </option>
               ))}
+            </select>
+          </div>
+          <div className="ms-field">
+            <label className="ms-label">Estado del estudiante</label>
+            <select className="ms-select" value={form.activo}
+              onChange={e => upd('activo', e.target.value)}>
+              <option value="true">Activo</option>
+              <option value="false">Inactivo</option>
             </select>
           </div>
         </div>
@@ -635,6 +654,7 @@ export default function ManageStudents() {
       const normalizedName = String(form.nombre || '').trim()
       const normalizedMatricula = String(form.matricula || '').trim()
       const normalizedSectionId = String(form.grade_section_id || '').trim()
+      const isActive = form.activo !== 'false'
 
       if (!normalizedName || !normalizedMatricula || !normalizedSectionId) {
         throw new Error('Nombre, matricula y seccion son obligatorios.')
@@ -654,6 +674,7 @@ export default function ManageStudents() {
           nombre: normalizedName,
           matricula: normalizedMatricula,
           grade_section_id: normalizedSectionId,
+          activo: isActive,
         }).eq('id', editStudent.id)
         if (error) throw error
       } else {
@@ -661,6 +682,8 @@ export default function ManageStudents() {
           nombre: normalizedName,
           matricula: normalizedMatricula,
           grade_section_id: normalizedSectionId,
+          school_id: activeSchoolId,
+          activo: isActive,
         })
         if (error) throw error
       }
@@ -679,6 +702,23 @@ export default function ManageStudents() {
       setDeleteStudent(null)
       await loadData()
     } catch (err) { alert('Error: ' + err.message) }
+  }
+
+  const handleToggleStudentStatus = async (student) => {
+    const nextStatus = student.activo === false
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ activo: nextStatus })
+        .eq('id', student.id)
+      if (error) throw error
+      setStudents(prev => prev.map(item => item.id === student.id ? { ...item, activo: nextStatus } : item))
+    } catch (err) {
+      alert('Error: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleSignOut = async () => { await signOut(); navigate('/') }
@@ -773,13 +813,14 @@ export default function ManageStudents() {
                       <th>Matrícula</th>
                       <th>Grado / Sección</th>
                       <th>Turno</th>
+                      <th>Estado</th>
                       <th style={{textAlign:'right'}}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.length === 0 ? (
                       <tr>
-                        <td colSpan={5}>
+                        <td colSpan={6}>
                           <div className="ms-empty">
                             {search || filterGrado || filterTurno
                               ? 'No se encontraron estudiantes con esos filtros'
@@ -812,6 +853,11 @@ export default function ManageStudents() {
                               : s.grade_sections?.turno === 'noche' ? '🌙 Noche'
                               : '—'}
                           </td>
+                          <td>
+                            <span className={`ms-status-badge ${s.activo === false ? 'inactive' : 'active'}`}>
+                              {s.activo === false ? 'Inactivo' : 'Activo'}
+                            </span>
+                          </td>
                           <td className="ms-action-cell">
                             <div className="ms-action-group">
                               <button
@@ -833,6 +879,16 @@ export default function ManageStudents() {
                               >
                                 <IcoEdit />
                                 <span>Editar</span>
+                              </button>
+                              <button
+                                type="button"
+                                className={`ms-action-btn ${s.activo === false ? 'status-on' : 'status-off'}`}
+                                title={s.activo === false ? 'Activar estudiante' : 'Desactivar estudiante'}
+                                aria-label={`${s.activo === false ? 'Activar' : 'Desactivar'} ${s.nombre}`}
+                                disabled={saving}
+                                onClick={() => handleToggleStudentStatus(s)}
+                              >
+                                <span>{s.activo === false ? 'Activar' : 'Desactivar'}</span>
                               </button>
                               <button
                                 type="button"

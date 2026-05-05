@@ -390,6 +390,79 @@ def _generate_password(length=12):
             return candidate
 
 
+@management_bp.route('/users', methods=['GET'])
+def list_managed_users():
+    _, actor_profile, error_response = _require_director()
+    if error_response:
+        return error_response
+
+    role = _normalize_role(request.args.get('role'))
+    if request.args.get('role') and not role:
+        return jsonify({'error': 'Rol invalido.'}), 400
+
+    school_id = actor_profile.get('school_id')
+
+    try:
+        schools = []
+        school = _fetch_school(school_id)
+        if school:
+            schools = [school]
+
+        sections = []
+        scoped_section_ids = set()
+        if school_id:
+            sections_result = (
+                supabase.table('grade_sections')
+                .select('*')
+                .eq('school_id', school_id)
+                .order('grado')
+                .order('seccion')
+                .execute()
+            )
+            sections = sections_result.data or []
+            scoped_section_ids = {item.get('id') for item in sections}
+
+        users = []
+        for item in _fetch_profiles_for_super_admin():
+            if role and item.get('role') != role:
+                continue
+            if item.get('role') not in SUPER_ADMIN_MANAGED_ROLES:
+                continue
+            if item.get('approval_status') == 'rejected':
+                continue
+            if _is_super_admin(item):
+                continue
+
+            item_school_id = _normalize_optional_uuid(item.get('school_id'))
+            item_sections = item.get('secciones_ids') if isinstance(item.get('secciones_ids'), list) else []
+            section_match = any(section_id in scoped_section_ids for section_id in item_sections)
+            if not _is_super_admin(actor_profile) and item_school_id != school_id and not section_match:
+                continue
+
+            auth_user = None
+            try:
+                auth_user = _fetch_auth_user(item.get('id'))
+            except Exception:
+                auth_user = None
+
+            resolved_school_id = _resolve_school_id_for_profile(item, auth_user) or item_school_id
+            users.append({
+                **item,
+                'school_id': resolved_school_id,
+                'approval_status': _resolve_approval_status_for_profile(item, auth_user),
+                'auth_exists': bool(auth_user),
+                'school': _fetch_school(resolved_school_id),
+            })
+
+        return jsonify({
+            'users': users,
+            'sections': sections,
+            'schools': schools,
+        }), 200
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
 def _send_director_request_email(payload):
     subject = f'Nueva solicitud de direccion - {payload["school_name"]}'
     send_direct_email(
