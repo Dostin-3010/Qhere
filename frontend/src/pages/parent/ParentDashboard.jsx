@@ -4,7 +4,7 @@
 // Prefijo CSS: .pd-
 // ============================================================
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -235,6 +235,7 @@ export default function ParentDashboard() {
   useEffect(() => {
     injectStyles()
     loadHijos()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -245,6 +246,7 @@ export default function ParentDashboard() {
       loadGradeEntries(selectedHijo.id)
       loadAlerts(selectedHijo.id)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedHijo])
 
   useEffect(() => {
@@ -265,6 +267,7 @@ export default function ParentDashboard() {
     return () => {
       supabase.removeChannel(channel)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id, selectedHijo?.id])
 
   function injectStyles() {
@@ -403,6 +406,7 @@ export default function ParentDashboard() {
       loadAttendance(selectedHijo.id)
       loadCalendar(selectedHijo)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calYear, calMonth])
 
   // ── Construir mapa de fechas para el calendario ───────────

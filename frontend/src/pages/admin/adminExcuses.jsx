@@ -234,6 +234,7 @@ export default function AdminExcuses() {
   useEffect(() => {
     injectStyles()
     loadExcuses()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSchoolId])
 
   function injectStyles() {

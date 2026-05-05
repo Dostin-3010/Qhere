@@ -177,17 +177,6 @@ function getStudentName(student) {
 function getStudentCode(student) {
   return student?.enrollment_code || student?.matricula || '--'
 }
-function getStudentSection(student) {
-  if (!student) return '--'
-  if (student.grade && student.section) return `${student.grade} ${student.section}`
-  if (student.grade_sections) {
-    const grade = student.grade_sections.grade || student.grade_sections.grado || ''
-    const section = student.grade_sections.section || student.grade_sections.seccion || ''
-    const label = `${grade} ${section}`.trim()
-    return label || '--'
-  }
-  return '--'
-}
 function getStatusMeta(status = 'pending') {
   const meta = {
     pending:   { label: 'Pendiente', className: 'pending' },
@@ -252,6 +241,7 @@ export default function ExcuseInbox() {
   useEffect(() => {
     injectStyles()
     loadExcuses()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function injectStyles() {
@@ -386,7 +376,9 @@ export default function ExcuseInbox() {
         dispositivo: navigator.userAgent.slice(0, 80),
         metadata:    meta,
       })
-    } catch {}
+    } catch (error) {
+      console.debug('Audit log skipped:', error)
+    }
   }
 
   // ── Filtrar ───────────────────────────────────────────────

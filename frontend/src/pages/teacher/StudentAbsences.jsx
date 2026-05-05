@@ -5,7 +5,7 @@
 // Registro y seguimiento de ausencias del docente
 // ============================================================
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -117,14 +117,6 @@ const STYLES = `
 `
 
 // ─── Helpers ─────────────────────────────────────────────────
-function getInitials(name = '') {
-  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
-}
-function formatFecha(f) {
-  if (!f) return '—'
-  return new Date(f + 'T12:00:00').toLocaleDateString('es-DO', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
 // ── Construir lista de meses disponibles (año actual) ────────
@@ -172,10 +164,12 @@ export default function StudentAbsences() {
   useEffect(() => {
     injectStyles()
     loadSecciones()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     loadRecords()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterSeccion, filterMes])
 
   function injectStyles() {

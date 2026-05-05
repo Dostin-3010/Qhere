@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import IdentityBubble, { getIdentityInitials } from '../../components/ui/IdentityBubble'
+import IdentityBubble from '../../components/ui/IdentityBubble'
 import AdminSidebarProfileCard from '../../components/layout/AdminSidebarProfileCard'
 import BrandLogo from '../../components/ui/BrandLogo'
 import {
@@ -377,10 +377,6 @@ function Sidebar({ profile, onSignOut }) {
     { label: 'Centro', path: '/admin/center',     Icon: IcoSetup   },
   ]
 
-  const initials = profile?.full_name
-    ? profile.full_name.split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()
-    : 'AD'
-
   return (
     <div className="ms-sidebar">
       <div className="ms-sidebar-logo">
@@ -473,11 +469,6 @@ function QRModal({ student, onClose, onStudentUpdated }) {
   const [warning, setWarning] = useState('')
   const displayStudent = currentStudent || student
 
-  useEffect(() => {
-    setCurrentStudent(student)
-    setWarning('')
-  }, [student])
-
   async function ensureQrToken(targetStudent = displayStudent, force = false) {
     if (!targetStudent?.id) return null
     if (!force && targetStudent?.qr_token) return targetStudent.qr_token
@@ -513,6 +504,7 @@ function QRModal({ student, onClose, onStudentUpdated }) {
     if (student && !student.qr_token) {
       ensureQrToken(student)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [student?.id])
 
   if (!displayStudent) return null
@@ -608,6 +600,7 @@ export default function ManageStudents() {
 
   useEffect(() => {
     loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSchoolId])
 
   const loadData = async () => {
@@ -726,8 +719,6 @@ export default function ManageStudents() {
   })
 
   const gradosUnicos = [...new Set(secciones.map(s => s.grado))]
-
-  const getInitials = name => getIdentityInitials(name)
 
   return (
     <>

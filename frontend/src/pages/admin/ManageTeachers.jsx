@@ -2,7 +2,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import IdentityBubble, { getIdentityInitials } from '../../components/ui/IdentityBubble'
+import IdentityBubble from '../../components/ui/IdentityBubble'
 import AdminSidebarProfileCard from '../../components/layout/AdminSidebarProfileCard'
 import BrandLogo from '../../components/ui/BrandLogo'
 import { createManagedUser } from '../../api/backendApi'
@@ -223,7 +223,6 @@ function Sidebar({ profile, onSignOut }) {
     { label: 'Excusas',       path: '/admin/excuses',   Icon: IcoExcuse  },
     { label: 'Centro', path: '/admin/center',     Icon: IcoSetup   },
   ]
-  const initials = getIdentityInitials(profile?.full_name) || 'AD'
   return (
     <div className="mt-sidebar">
       <div className="mt-sidebar-logo">
@@ -443,6 +442,7 @@ export default function ManageTeachers() {
 
   useEffect(() => {
     loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSchoolId])
 
   const loadData = async () => {
@@ -612,8 +612,6 @@ export default function ManageTeachers() {
     const matchPerm = !filterPerm || (t.permisos ?? []).includes(filterPerm)
     return matchSearch && matchPerm
   })
-
-  const getInitials = name => getIdentityInitials(name)
 
   const permLabel = {
     pasar_asistencia: { label: 'Asistencia', cls: 'pasar' },

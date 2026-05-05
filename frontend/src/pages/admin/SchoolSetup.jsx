@@ -1179,6 +1179,7 @@ function Step2({ secciones, setSecciones }) {
     const nextCourses = Array.from(courseSet)
     const nextGrades = Array.from(gradeSet)
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAvailableCourses(nextCourses)
     setAvailableGrades(nextGrades)
 
@@ -2015,6 +2016,7 @@ export default function SchoolSetup() {
       setBootstrapping(false)
       setCourseBoardLoading(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSchoolId])
 
   async function loadExistingSetup() {

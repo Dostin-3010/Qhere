@@ -20,6 +20,8 @@ ROLE_LABELS = {
     'parent': 'Padre/Tutor',
 }
 
+SUPER_ADMIN_MANAGED_ROLES = ['admin', 'teacher', 'parent']
+
 
 def _normalize_email(value=''):
     return str(value or '').strip().lower()
@@ -75,6 +77,17 @@ def _delete_profile(profile_id):
     supabase.table('profiles').delete().eq('id', profile_id).execute()
 
 
+def _delete_auth_user(user_id):
+    if not user_id:
+        return False
+
+    try:
+        supabase.auth.admin.delete_user(str(user_id))
+        return True
+    except Exception:
+        return False
+
+
 def _auth_user_exists(user_id):
     if not user_id:
         return False
@@ -91,6 +104,35 @@ def _fetch_auth_user(user_id):
 
     response = supabase.auth.admin.get_user_by_id(str(user_id))
     return getattr(response, 'user', None)
+
+
+def _get_profile_fields():
+    fields = ['id', 'full_name', 'email', 'phone', 'role', 'created_at']
+    for column in [
+        'school_id',
+        'approval_status',
+        'approval_requested_at',
+        'approved_at',
+        'approved_by',
+        'approval_note',
+        'permisos',
+        'secciones_ids',
+        'margen_tardanza_minutos',
+    ]:
+        if _profiles_supports_column(column):
+            fields.append(column)
+    return fields
+
+
+def _fetch_profiles_for_super_admin():
+    fields = _get_profile_fields()
+    result = (
+        supabase.table('profiles')
+        .select(', '.join(fields))
+        .order('created_at', desc=True)
+        .execute()
+    )
+    return result.data or []
 
 
 def _get_auth_user_id(auth_user):
@@ -565,32 +607,13 @@ def super_admin_overview():
         return error_response
 
     try:
-        director_fields = ['id', 'full_name', 'email', 'phone', 'role', 'created_at']
-        if _profiles_supports_column('approval_status'):
-            director_fields.append('approval_status')
-        if _profiles_supports_column('approval_requested_at'):
-            director_fields.append('approval_requested_at')
-        if _profiles_supports_column('approved_at'):
-            director_fields.append('approved_at')
-        if _profiles_supports_column('approval_note'):
-            director_fields.append('approval_note')
-        if _profiles_supports_school_id():
-            director_fields.append('school_id')
-
         schools_result = supabase.table('schools').select('*').order('created_at', desc=True).execute()
-        directors_result = (
-            supabase.table('profiles')
-            .select(', '.join(director_fields))
-            .eq('role', 'admin')
-            .order('created_at', desc=True)
-            .execute()
-        )
-
         schools = schools_result.data or []
         schools_by_id = {school['id']: school for school in schools}
 
+        users = []
         directors = []
-        for item in directors_result.data or []:
+        for item in _fetch_profiles_for_super_admin():
             auth_user = None
             try:
                 auth_user = _fetch_auth_user(item.get('id'))
@@ -600,13 +623,16 @@ def super_admin_overview():
             resolved_school_id = _resolve_school_id_for_profile(item, auth_user)
             school = schools_by_id.get(resolved_school_id)
             approval_status = _resolve_approval_status_for_profile(item, auth_user)
-            directors.append({
+            row = {
                 **item,
                 'school_id': resolved_school_id,
                 'approval_status': approval_status,
                 'school': school,
                 'auth_exists': bool(auth_user),
-            })
+            }
+            users.append(row)
+            if item.get('role') == 'admin':
+                directors.append(row)
 
         panel_notifications = []
         try:
@@ -631,9 +657,13 @@ def super_admin_overview():
             'stats': {
                 'schools': len(schools),
                 'directors': len(directors),
+                'users': len(users),
+                'teachers': len([item for item in users if item.get('role') == 'teacher']),
+                'parents': len([item for item in users if item.get('role') == 'parent']),
                 'pending_directors': len([item for item in directors if item.get('approval_status') == 'pending']),
             },
             'schools': schools,
+            'users': users,
             'directors': directors,
             'panel_notifications': panel_notifications,
         }), 200
@@ -669,6 +699,140 @@ def create_school():
         if not school:
             raise ValueError('No se pudo crear el centro educativo.')
         return jsonify({'school': school}), 201
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+@management_bp.route('/super-admin/schools/<school_id>', methods=['PUT', 'PATCH'])
+def update_school(school_id):
+    _, _, error_response = _require_super_admin()
+    if error_response:
+        return error_response
+
+    school_id = _normalize_optional_uuid(school_id)
+    if not school_id:
+        return jsonify({'error': 'Centro invalido.'}), 400
+
+    if not _fetch_school(school_id):
+        return jsonify({'error': 'No se encontro el centro educativo.'}), 404
+
+    data = request.get_json() or {}
+    payload = {}
+    for key in ['nombre', 'direccion', 'telefono', 'email', 'director']:
+        if key in data:
+            value = _normalize_email(data.get(key)) if key == 'email' else str(data.get(key) or '').strip()
+            payload[key] = value or None
+
+    if 'configurado' in data:
+        payload['configurado'] = bool(data.get('configurado'))
+
+    if 'nombre' in payload and not payload['nombre']:
+        return jsonify({'error': 'El nombre del centro es obligatorio.'}), 400
+
+    if not payload:
+        return jsonify({'error': 'No hay cambios para guardar.'}), 400
+
+    try:
+        result = supabase.table('schools').update(payload).eq('id', school_id).execute()
+        rows = result.data or []
+        school = rows[0] if rows else _fetch_school(school_id)
+        return jsonify({'school': school, 'message': 'Centro actualizado correctamente.'}), 200
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+def _school_usage_counts(school_id):
+    counts = {
+        'users': 0,
+        'students': 0,
+        'sections': 0,
+    }
+
+    try:
+        counts['users'] = (
+            supabase.table('profiles')
+            .select('id', count='exact')
+            .eq('school_id', school_id)
+            .execute()
+            .count or 0
+        )
+    except Exception:
+        counts['users'] = 0
+
+    try:
+        counts['students'] = (
+            supabase.table('students')
+            .select('id', count='exact')
+            .eq('school_id', school_id)
+            .execute()
+            .count or 0
+        )
+    except Exception:
+        counts['students'] = 0
+
+    try:
+        counts['sections'] = (
+            supabase.table('grade_sections')
+            .select('id', count='exact')
+            .eq('school_id', school_id)
+            .execute()
+            .count or 0
+        )
+    except Exception:
+        counts['sections'] = 0
+
+    return counts
+
+
+@management_bp.route('/super-admin/schools/<school_id>', methods=['DELETE'])
+def delete_school(school_id):
+    _, actor_profile, error_response = _require_super_admin()
+    if error_response:
+        return error_response
+
+    school_id = _normalize_optional_uuid(school_id)
+    force = str(request.args.get('force') or '').lower() in ['1', 'true', 'yes']
+    if not school_id:
+        return jsonify({'error': 'Centro invalido.'}), 400
+
+    school = _fetch_school(school_id)
+    if not school:
+        return jsonify({'error': 'No se encontro el centro educativo.'}), 404
+
+    counts = _school_usage_counts(school_id)
+    if not force and any(counts.values()):
+        return jsonify({
+            'error': 'El centro tiene usuarios, estudiantes o secciones. Confirma el borrado total para continuar.',
+            'counts': counts,
+        }), 409
+
+    try:
+        profiles_result = (
+            supabase.table('profiles')
+            .select('id, email, role')
+            .eq('school_id', school_id)
+            .execute()
+        )
+        for item in profiles_result.data or []:
+            if _normalize_email(item.get('email')) == Config.SUPER_ADMIN_EMAIL:
+                continue
+            if not _delete_auth_user(item.get('id')):
+                _delete_profile(item.get('id'))
+
+        supabase.table('students').delete().eq('school_id', school_id).execute()
+        supabase.table('grade_sections').delete().eq('school_id', school_id).execute()
+        supabase.table('schedules').delete().eq('school_id', school_id).execute()
+        try:
+            supabase.table('school_calendar').delete().eq('school_id', school_id).execute()
+        except Exception:
+            pass
+
+        supabase.table('schools').delete().eq('id', school_id).execute()
+        return jsonify({
+            'message': 'Centro eliminado junto con sus usuarios y datos dependientes.',
+            'deleted_school_id': school_id,
+            'deleted_by': actor_profile.get('id'),
+        }), 200
     except Exception as exc:
         return jsonify({'error': str(exc)}), 400
 
@@ -724,6 +888,119 @@ def assign_director_to_school(school_id):
             'director_name': target.get('full_name'),
             'profile_update_applied': profile_update_applied,
             'auth_metadata_updated': bool(auth_user),
+        }), 200
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+@management_bp.route('/super-admin/users/<profile_id>', methods=['PUT', 'PATCH'])
+def update_super_admin_user(profile_id):
+    _, actor_profile, error_response = _require_super_admin()
+    if error_response:
+        return error_response
+
+    target = _fetch_profile(profile_id)
+    if not target:
+        return jsonify({'error': 'No se encontro el usuario.'}), 404
+    if _normalize_email(target.get('email')) == Config.SUPER_ADMIN_EMAIL:
+        return jsonify({'error': 'La cuenta super admin no se edita desde este CRUD.'}), 403
+
+    data = request.get_json() or {}
+    full_name = str(data.get('full_name') or target.get('full_name') or '').strip()
+    email = _normalize_email(data.get('email') or target.get('email'))
+    phone = str(data.get('phone') if data.get('phone') is not None else target.get('phone') or '').strip()
+    role = _normalize_role(data.get('role') or target.get('role'))
+    school_id = _normalize_optional_uuid(data.get('school_id')) if 'school_id' in data else _normalize_optional_uuid(target.get('school_id'))
+    approval_status = str(data.get('approval_status') or target.get('approval_status') or 'approved').strip().lower()
+    permisos = data.get('permisos') if isinstance(data.get('permisos'), list) else target.get('permisos') or []
+    secciones_ids = data.get('secciones_ids') if isinstance(data.get('secciones_ids'), list) else target.get('secciones_ids') or []
+    margen_tardanza = data.get('margen_tardanza_minutos', target.get('margen_tardanza_minutos') or 30)
+
+    if role not in SUPER_ADMIN_MANAGED_ROLES:
+        return jsonify({'error': 'Rol invalido para este panel.'}), 400
+    if approval_status not in ['pending', 'approved', 'rejected']:
+        return jsonify({'error': 'Estado invalido.'}), 400
+    if not full_name or not email:
+        return jsonify({'error': 'Nombre y correo son obligatorios.'}), 400
+    if school_id and not _fetch_school(school_id):
+        return jsonify({'error': 'El centro seleccionado no existe.'}), 404
+
+    try:
+        payload = {
+            'full_name': full_name,
+            'email': email,
+            'phone': phone or None,
+            'role': role,
+            'approval_status': approval_status,
+            'approval_note': str(data.get('approval_note') or '').strip() or None,
+        }
+        if approval_status == 'approved':
+            payload['approved_at'] = target.get('approved_at') or _utcnow()
+            payload['approved_by'] = target.get('approved_by') or actor_profile.get('id')
+        if role == 'teacher':
+            payload['permisos'] = permisos
+            payload['secciones_ids'] = secciones_ids
+            payload['margen_tardanza_minutos'] = int(margen_tardanza or 30)
+
+        filtered_payload = _filter_profile_payload({
+            **payload,
+            'school_id': school_id,
+        })
+        result = supabase.table('profiles').update(filtered_payload).eq('id', profile_id).execute()
+        rows = result.data or []
+        updated_profile = rows[0] if rows else _fetch_profile(profile_id)
+
+        auth_updates = {
+            'full_name': full_name,
+            'role': role,
+            'school_id': school_id,
+            'approval_status': approval_status,
+        }
+        auth_payload = {'user_metadata': auth_updates}
+        if email != _normalize_email(target.get('email')):
+            auth_payload['email'] = email
+            auth_payload['email_confirm'] = True
+        try:
+            supabase.auth.admin.update_user_by_id(str(profile_id), auth_payload)
+        except Exception:
+            pass
+
+        if role == 'admin' and school_id:
+            supabase.table('schools').update({'director': full_name}).eq('id', school_id).execute()
+
+        return jsonify({'profile': updated_profile, 'message': 'Usuario actualizado correctamente.'}), 200
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+@management_bp.route('/super-admin/users/<profile_id>', methods=['DELETE'])
+def delete_super_admin_user(profile_id):
+    _, _, error_response = _require_super_admin()
+    if error_response:
+        return error_response
+
+    target = _fetch_profile(profile_id)
+    if not target:
+        return jsonify({'error': 'No se encontro el usuario.'}), 404
+    if _normalize_email(target.get('email')) == Config.SUPER_ADMIN_EMAIL:
+        return jsonify({'error': 'No puedes borrar la cuenta super admin.'}), 403
+
+    try:
+        if target.get('role') == 'admin':
+            school_id = _normalize_optional_uuid(target.get('school_id'))
+            if school_id:
+                school = _fetch_school(school_id)
+                if school and str(school.get('director') or '').strip() == str(target.get('full_name') or '').strip():
+                    supabase.table('schools').update({'director': None}).eq('id', school_id).execute()
+
+        auth_deleted = _delete_auth_user(profile_id)
+        if not auth_deleted:
+            _delete_profile(profile_id)
+
+        return jsonify({
+            'message': 'Usuario eliminado del panel y de Authentication.',
+            'deleted_profile_id': profile_id,
+            'auth_deleted': auth_deleted,
         }), 200
     except Exception as exc:
         return jsonify({'error': str(exc)}), 400

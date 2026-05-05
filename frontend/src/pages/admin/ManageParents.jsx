@@ -218,6 +218,7 @@ export default function ManageParents() {
     injectStyles()
     void loadParents()
     void loadStudents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSchoolId])
 
   function setFormField(field, value) {

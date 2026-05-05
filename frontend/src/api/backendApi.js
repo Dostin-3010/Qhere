@@ -96,9 +96,39 @@ export function createSchool(payload) {
   })
 }
 
+export function updateSchool(schoolId, payload) {
+  return apiRequest(`/api/management/super-admin/schools/${schoolId}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function deleteSchool(schoolId, { force = true } = {}) {
+  const suffix = force ? '?force=true' : ''
+  return apiRequest(`/api/management/super-admin/schools/${schoolId}${suffix}`, {
+    method: 'DELETE',
+  })
+}
+
 export function assignDirectorToSchool(schoolId, directorProfileId) {
   return apiRequest(`/api/management/super-admin/schools/${schoolId}/assign-director`, {
     method: 'POST',
     body: { director_profile_id: normalizeOptionalUuid(directorProfileId) },
+  })
+}
+
+export function updateSuperAdminUser(profileId, payload) {
+  return apiRequest(`/api/management/super-admin/users/${profileId}`, {
+    method: 'PATCH',
+    body: {
+      ...payload,
+      school_id: normalizeOptionalUuid(payload?.school_id),
+    },
+  })
+}
+
+export function deleteSuperAdminUser(profileId) {
+  return apiRequest(`/api/management/super-admin/users/${profileId}`, {
+    method: 'DELETE',
   })
 }

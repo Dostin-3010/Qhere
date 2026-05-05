@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components */
+
 const tones = {
   blue: {
     border: 'rgba(17, 17, 17, 0.12)',

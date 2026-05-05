@@ -314,10 +314,6 @@ const STYLES = `
 `
 
 // ─── Utilidades ─────────────────────────────────────────────
-function getInitials(name = '') {
-  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
-}
-
 function getHoraActual() {
   return new Date().toTimeString().slice(0, 5) // "07:45"
 }
@@ -657,7 +653,7 @@ export default function TeacherDashboard() {
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState(null)  // { type, msg, student }
   const [schedule, setSchedule] = useState(null)
-  const [secciones, setSecciones] = useState([])
+  const [, setSecciones] = useState([])
   const [attendanceList, setAttendanceList] = useState([])
   const [loadingList, setLoadingList] = useState(false)
   const [filterEstado, setFilterEstado] = useState('todos')
@@ -691,6 +687,7 @@ export default function TeacherDashboard() {
     loadSecciones()
     loadAttendanceList()
     injectStyles()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -723,7 +720,7 @@ export default function TeacherDashboard() {
         video.muted = true
         video.setAttribute('muted', 'true')
         video.setAttribute('playsinline', 'true')
-        try { await video.play() } catch {}
+        try { await video.play() } catch (error) { console.debug('Video play retry failed:', error) }
 
         if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
           return true
@@ -843,8 +840,8 @@ export default function TeacherDashboard() {
     html5QrRef.current = null
 
     if (currentScanner) {
-      try { await currentScanner.stop() } catch {}
-      try { await currentScanner.clear() } catch {}
+      try { await currentScanner.stop() } catch (error) { console.debug('Scanner stop ignored:', error) }
+      try { await currentScanner.clear() } catch (error) { console.debug('Scanner clear ignored:', error) }
     }
 
     setScanning(false)
@@ -1307,7 +1304,9 @@ export default function TeacherDashboard() {
         dispositivo: navigator.userAgent.slice(0, 80),
         metadata:    meta,
       })
-    } catch {}
+    } catch (error) {
+      console.debug('Audit log skipped:', error)
+    }
   }
 
   // ── Filtrar lista ────────────────────────────────────────

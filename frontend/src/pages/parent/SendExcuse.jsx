@@ -213,6 +213,7 @@ export default function SendExcuse() {
     loadHijos()
     // Preseleccionar fecha de hoy
     setFechaAusencia(new Date().toISOString().slice(0, 10))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function injectStyles() {
