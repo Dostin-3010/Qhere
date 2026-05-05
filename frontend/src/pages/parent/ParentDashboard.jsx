@@ -133,23 +133,22 @@ const STYLES = `
   .pd-btn-secondary { background:${C.skyLight}; color:${C.navy}; border:1px solid ${C.border}; width:100%; justify-content:center; margin-top:8px; }
   .pd-btn-secondary:hover { background:${C.sky}; }
 
-  .pd-live-card { display:grid; gap:14px; }
-  .pd-live-top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-  .pd-live-status { display:flex; align-items:center; gap:10px; min-width:0; flex:1; }
-  .pd-live-status > div { min-width:0; }
-  .pd-live-dot { width:12px; height:12px; border-radius:999px; flex-shrink:0; box-shadow:0 0 0 4px rgba(27,63,107,.08); }
-  .pd-live-title { font-size:15px; font-weight:800; color:${C.dark}; line-height:1.25; }
-  .pd-live-copy { font-size:12px; color:${C.mid}; line-height:1.35; margin-top:2px; }
-  .pd-live-pill { border-radius:999px; padding:5px 9px; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; }
-  .pd-live-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-  .pd-live-metric { border:1px solid ${C.border}; border-radius:10px; padding:9px 10px; background:#F8FBFE; }
-  .pd-live-label { font-size:10px; font-weight:800; color:${C.mid}; text-transform:uppercase; letter-spacing:.04em; }
-  .pd-live-value { font-size:13px; font-weight:700; color:${C.dark}; margin-top:3px; }
-  .pd-mini-list { display:grid; gap:8px; padding-top:13px; border-top:1px solid ${C.border}; }
-  .pd-mini-row { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:${C.mid}; }
-  .pd-mini-row span:first-child { min-width:0; }
-  .pd-mini-row span:last-child { flex-shrink:0; text-align:right; }
-  .pd-mini-row strong { color:${C.dark}; font-size:12px; }
+  .pd-today { display:grid; gap:14px; }
+  .pd-today-status { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 13px; border-radius:10px; border:1px solid ${C.border}; border-left-width:4px; background:#F8FBFE; }
+  .pd-today-main { min-width:0; }
+  .pd-today-title { font-size:15px; font-weight:800; color:${C.dark}; line-height:1.2; }
+  .pd-today-copy { font-size:12px; color:${C.mid}; line-height:1.35; margin-top:3px; }
+  .pd-today-chip { border-radius:999px; padding:5px 9px; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; }
+  .pd-today-times { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .pd-today-time { display:flex; align-items:center; justify-content:space-between; gap:8px; border-bottom:1px solid ${C.border}; padding-bottom:8px; min-width:0; }
+  .pd-today-time:last-child { }
+  .pd-today-time span { font-size:11px; font-weight:800; color:${C.mid}; text-transform:uppercase; letter-spacing:.04em; }
+  .pd-today-time strong { font-size:13px; color:${C.dark}; white-space:nowrap; }
+  .pd-recent-title { font-size:11px; font-weight:800; color:${C.mid}; text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px; }
+  .pd-recent-list { display:grid; gap:7px; }
+  .pd-recent-row { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:${C.mid}; }
+  .pd-recent-date { min-width:0; color:${C.dark}; font-weight:600; }
+  .pd-recent-status { flex-shrink:0; border-radius:999px; padding:3px 8px; font-size:10px; font-weight:800; background:${C.skyLight}; }
 
   .pd-alert-list { display:grid; gap:10px; }
   .pd-alert-item { border:1px solid ${C.border}; border-radius:12px; padding:13px; background:linear-gradient(180deg,#fff,#F5FAFD); }
@@ -178,10 +177,10 @@ const STYLES = `
     .pd-main { padding:16px; }
     .pd-card-head { padding:15px 16px 12px; }
     .pd-card-body { padding:16px; }
-    .pd-live-top { align-items:flex-start; }
-    .pd-live-title { font-size:14px; }
-    .pd-live-grid { gap:7px; }
-    .pd-mini-row { align-items:flex-start; }
+    .pd-today-status { align-items:flex-start; }
+    .pd-today-title { font-size:14px; }
+    .pd-today-times { gap:8px; }
+    .pd-recent-row { align-items:flex-start; }
   }
 `
 
@@ -778,48 +777,51 @@ export default function ParentDashboard() {
                           </div>
                         </div>
                         <div className="pd-card-body">
-                          <div className="pd-live-card">
-                            <div className="pd-live-top">
-                              <div className="pd-live-status">
-                                <span className="pd-live-dot" style={{ background: todayTone.color }} />
-                                <div>
-                                  <div className="pd-live-title">{todayLabel}</div>
-                                  <div className="pd-live-copy">{todayTone.copy}</div>
-                                </div>
+                          <div className="pd-today">
+                            <div
+                              className="pd-today-status"
+                              style={{ borderLeftColor: todayTone.color }}
+                            >
+                              <div className="pd-today-main">
+                                <div className="pd-today-title">{todayLabel}</div>
+                                <div className="pd-today-copy">{todayTone.copy}</div>
                               </div>
-                              <span className="pd-live-pill" style={{ color: todayTone.color, background: todayTone.bg }}>
+                              <span className="pd-today-chip" style={{ color: todayTone.color, background: todayTone.bg }}>
                                 Hoy
                               </span>
                             </div>
 
-                            <div className="pd-live-grid">
-                              <div className="pd-live-metric">
-                                <div className="pd-live-label">Entrada</div>
-                                <div className="pd-live-value">{formatTime(todayAttendance?.hora_entrada)}</div>
+                            <div className="pd-today-times">
+                              <div className="pd-today-time">
+                                <span>Entrada</span>
+                                <strong>{formatTime(todayAttendance?.hora_entrada)}</strong>
                               </div>
-                              <div className="pd-live-metric">
-                                <div className="pd-live-label">Salida</div>
-                                <div className="pd-live-value">{formatTime(todayAttendance?.hora_salida)}</div>
+                              <div className="pd-today-time">
+                                <span>Salida</span>
+                                <strong>{formatTime(todayAttendance?.hora_salida)}</strong>
                               </div>
                             </div>
 
-                            <div className="pd-mini-list">
+                            <div>
+                              <div className="pd-recent-title">Recientes</div>
                               {recentAttendance.length === 0 ? (
-                                <div className="pd-mini-row">
+                                <div className="pd-recent-row">
                                   <span>No hay registros recientes.</span>
                                 </div>
                               ) : (
-                                recentAttendance.map(record => {
-                                  const tone = ATTENDANCE_TONE[record.estado] || todayTone
-                                  return (
-                                    <div key={record.id} className="pd-mini-row">
-                                      <span><strong>{formatFecha(record.fecha)}</strong></span>
-                                      <span style={{ color: tone.color, fontWeight: 700 }}>
-                                        {ATTENDANCE_LABEL[record.estado] || record.estado || 'Registrado'}
-                                      </span>
-                                    </div>
-                                  )
-                                })
+                                <div className="pd-recent-list">
+                                  {recentAttendance.map(record => {
+                                    const tone = ATTENDANCE_TONE[record.estado] || todayTone
+                                    return (
+                                      <div key={record.id} className="pd-recent-row">
+                                        <span className="pd-recent-date">{formatFecha(record.fecha)}</span>
+                                        <span className="pd-recent-status" style={{ color: tone.color, background: tone.bg }}>
+                                          {ATTENDANCE_LABEL[record.estado] || record.estado || 'Registrado'}
+                                        </span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
                               )}
                             </div>
                           </div>
