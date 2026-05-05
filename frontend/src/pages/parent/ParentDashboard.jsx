@@ -133,19 +133,22 @@ const STYLES = `
   .pd-btn-secondary { background:${C.skyLight}; color:${C.navy}; border:1px solid ${C.border}; width:100%; justify-content:center; margin-top:8px; }
   .pd-btn-secondary:hover { background:${C.sky}; }
 
-  .pd-live-card { border:1px solid ${C.border}; border-radius:14px; padding:15px; background:linear-gradient(180deg,#fff,#F5FAFD); }
-  .pd-live-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
-  .pd-live-status { display:flex; align-items:center; gap:10px; min-width:0; }
+  .pd-live-card { display:grid; gap:14px; }
+  .pd-live-top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .pd-live-status { display:flex; align-items:center; gap:10px; min-width:0; flex:1; }
+  .pd-live-status > div { min-width:0; }
   .pd-live-dot { width:12px; height:12px; border-radius:999px; flex-shrink:0; box-shadow:0 0 0 4px rgba(27,63,107,.08); }
-  .pd-live-title { font-size:14px; font-weight:800; color:${C.dark}; line-height:1.25; }
-  .pd-live-copy { font-size:12px; color:${C.mid}; line-height:1.45; margin-top:3px; }
+  .pd-live-title { font-size:15px; font-weight:800; color:${C.dark}; line-height:1.25; }
+  .pd-live-copy { font-size:12px; color:${C.mid}; line-height:1.35; margin-top:2px; }
   .pd-live-pill { border-radius:999px; padding:5px 9px; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; }
-  .pd-live-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:12px; }
-  .pd-live-metric { border:1px solid ${C.border}; border-radius:10px; padding:9px 10px; background:#fff; }
+  .pd-live-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .pd-live-metric { border:1px solid ${C.border}; border-radius:10px; padding:9px 10px; background:#F8FBFE; }
   .pd-live-label { font-size:10px; font-weight:800; color:${C.mid}; text-transform:uppercase; letter-spacing:.04em; }
   .pd-live-value { font-size:13px; font-weight:700; color:${C.dark}; margin-top:3px; }
-  .pd-mini-list { display:grid; gap:8px; margin-top:14px; padding-top:13px; border-top:1px solid ${C.border}; }
+  .pd-mini-list { display:grid; gap:8px; padding-top:13px; border-top:1px solid ${C.border}; }
   .pd-mini-row { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:${C.mid}; }
+  .pd-mini-row span:first-child { min-width:0; }
+  .pd-mini-row span:last-child { flex-shrink:0; text-align:right; }
   .pd-mini-row strong { color:${C.dark}; font-size:12px; }
 
   .pd-alert-list { display:grid; gap:10px; }
@@ -170,6 +173,15 @@ const STYLES = `
   @media (max-width:900px) {
     .pd-sidebar { transform:translateX(-100%); }
     .pd-main { margin-left:0; padding:20px; }
+  }
+  @media (max-width:520px) {
+    .pd-main { padding:16px; }
+    .pd-card-head { padding:15px 16px 12px; }
+    .pd-card-body { padding:16px; }
+    .pd-live-top { align-items:flex-start; }
+    .pd-live-title { font-size:14px; }
+    .pd-live-grid { gap:7px; }
+    .pd-mini-row { align-items:flex-start; }
   }
 `
 
@@ -345,11 +357,13 @@ export default function ParentDashboard() {
   }, [selectedHijo?.id, calYear, calMonth])
 
   function injectStyles() {
-    if (document.getElementById('pd-styles')) return
-    const el = document.createElement('style')
-    el.id = 'pd-styles'
+    let el = document.getElementById('pd-styles')
+    if (!el) {
+      el = document.createElement('style')
+      el.id = 'pd-styles'
+      document.head.appendChild(el)
+    }
     el.textContent = STYLES
-    document.head.appendChild(el)
   }
 
   async function loadHijos() {
@@ -510,9 +524,9 @@ export default function ParentDashboard() {
   const todayTone = ATTENDANCE_TONE[todayStatus] || {
     color: C.mid,
     bg: C.skyLight,
-    copy: 'Todavia no hay registro de asistencia para hoy.',
+    copy: 'Aun no hay asistencia registrada hoy.',
   }
-  const todayLabel = ATTENDANCE_LABEL[todayStatus] || 'Sin registro'
+  const todayLabel = ATTENDANCE_LABEL[todayStatus] || 'Sin registro hoy'
   const recentAttendance = [...attendance]
     .sort((a, b) => {
       const byDate = String(b.fecha || '').localeCompare(String(a.fecha || ''))
