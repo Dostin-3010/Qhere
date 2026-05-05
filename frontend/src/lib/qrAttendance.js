@@ -101,14 +101,14 @@ export function buildQrSvgMarkup(value, size = 240, options = {}) {
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         if (bitMatrix.get(x, y)) {
-          rects.push(`<rect x="${x}" y="${y}" width="1" height="1" fill="${foreground}" />`)
+          rects.push(`<rect x="${x}" y="${y}" width="1" height="1" fill="${foreground}" style="fill: ${foreground} !important;" />`)
         }
       }
     }
 
     return `
       <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">
-        <rect width="${width}" height="${height}" fill="${background}" />
+        <rect width="${width}" height="${height}" fill="${background}" style="fill: ${background} !important;" />
         ${rects.join('')}
       </svg>
     `.trim()

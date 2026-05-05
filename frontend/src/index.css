@@ -2460,3 +2460,412 @@ body,
   border-color: rgba(255,255,255,.16) !important;
   color: #ffffff !important;
 }
+
+/* Responsive stability layer: preserve the visual skin while preventing narrow viewport overflow. */
+:where(
+  .ad2-root,
+  .ad-root,
+  .ae-root,
+  .mp-root,
+  .ms-root,
+  .mt-root,
+  .ss-root,
+  .eh-root,
+  .pd-root,
+  .se-root,
+  .ei-root,
+  .sa-root,
+  .td-root,
+  .ra-root,
+  .lg-root,
+  .hp-root,
+  .dr-root
+) {
+  min-width: 0 !important;
+}
+
+:where(
+  .ad2-root,
+  .ad-root,
+  .ae-root,
+  .mp-root,
+  .ms-root,
+  .mt-root,
+  .ss-root,
+  .eh-root,
+  .pd-root,
+  .se-root,
+  .ei-root,
+  .sa-root,
+  .td-root,
+  .ra-root,
+  .lg-root,
+  .hp-root,
+  .dr-root
+) :where(*) {
+  min-width: 0;
+}
+
+:where(
+  .ad2-root,
+  .ad-root,
+  .ae-root,
+  .mp-root,
+  .ms-root,
+  .mt-root,
+  .ss-root,
+  .eh-root,
+  .pd-root,
+  .se-root,
+  .ei-root,
+  .sa-root,
+  .td-root,
+  .ra-root,
+  .lg-root,
+  .hp-root,
+  .dr-root
+) :where(img, svg, canvas, video) {
+  max-width: 100%;
+}
+
+:where(
+  .ad2-root,
+  .ad-root,
+  .ae-root,
+  .mp-root,
+  .ms-root,
+  .mt-root,
+  .ss-root,
+  .eh-root,
+  .pd-root,
+  .se-root,
+  .ei-root,
+  .sa-root,
+  .td-root,
+  .ra-root
+) :where(table) {
+  min-width: max-content;
+}
+
+@media (max-width: 1100px) {
+  :where(.hp-hero, .hp-grid, .hp-roles, .hp-steps, .hp-panels, .hp-metrics, .lg-shell, .lg-grid, .dr-shell, .ra-shell, .ra-grid, .ra-admin-grid) {
+    grid-template-columns: 1fr !important;
+  }
+
+  :where(.hp-stage, .lg-hero, .lg-panel, .dr-card, .ra-card) {
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 960px) {
+  :where(.ad2-root, .ad-root, .ae-root, .mp-root, .ms-root, .mt-root, .eh-root, .pd-root, .se-root, .ei-root, .sa-root, .td-root) {
+    display: block !important;
+    overflow-x: hidden !important;
+  }
+
+  :where(.ad2-sidebar, .ad-sidebar, .ae-sidebar, .mp-sidebar, .ms-sidebar, .mt-sidebar, .pd-sidebar, .se-sidebar, .eh-sidebar, .ei-sidebar, .sa-sidebar, .td-sidebar) {
+    position: sticky !important;
+    inset: 0.75rem 0.75rem auto !important;
+    width: auto !important;
+    min-height: auto !important;
+    max-height: calc(100dvh - 1.5rem) !important;
+    margin: 0.75rem !important;
+    border-radius: 20px !important;
+    overflow: hidden auto !important;
+    transform: none !important;
+  }
+
+  :where(.ad2-main, .ad-main, .ae-main, .mp-main, .ms-main, .mt-main, .eh-main, .pd-main, .se-main, .ei-main, .sa-main, .td-main) {
+    width: 100% !important;
+    margin-left: 0 !important;
+    padding: 1rem !important;
+    overflow-x: hidden !important;
+  }
+
+  :where(.ss-root) {
+    padding: 1rem !important;
+  }
+
+  :where(.ss-wrap, .lg-shell, .hp-shell, .dr-wrap, .ra-wrap) {
+    width: min(100%, calc(100% - 1.5rem)) !important;
+    max-width: none !important;
+  }
+
+  :where(.ad2-sidebar-section, .ad-sidebar-section, .ms-sidebar-section, .mt-sidebar-section, .ae-nav, .mp-nav, .pd-nav, .se-nav, .eh-nav, .ei-nav, .sa-nav, .td-nav) {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 0.5rem !important;
+    padding: 0.75rem 1rem !important;
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  :where(.ad2-sidebar-section, .ad-sidebar-section, .ms-sidebar-section, .mt-sidebar-section, .ae-nav, .mp-nav, .pd-nav, .se-nav, .eh-nav, .ei-nav, .sa-nav, .td-nav)::-webkit-scrollbar {
+    display: none;
+  }
+
+  :where(.ad2-nav-item, .ad-nav-item, .ae-nav-item, .mp-nav-item, .ms-nav-item, .mt-nav-item, .pd-nav-item, .se-nav-item, .eh-nav-item, .ei-nav-item, .sa-nav-item, .td-nav-item) {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-height: 44px !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    transform: none !important;
+  }
+
+  :where(.ad2-sidebar-bottom, .ad-sidebar-bottom, .ms-sidebar-bottom, .mt-sidebar-bottom, .ae-sidebar-bottom, .mp-sidebar-footer, .pd-sidebar-footer, .se-sidebar-footer, .eh-sidebar-footer, .ei-sidebar-footer, .sa-sidebar-footer, .td-sidebar-footer) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.75rem !important;
+    align-items: center !important;
+    padding: 0 1rem 1rem !important;
+    margin-top: 0 !important;
+  }
+
+  :where(.ad2-topbar, .ad-topbar, .ms-topbar, .mt-topbar, .mp-header, .ae-header, .eh-header, .ei-header, .sa-header, .td-header, .pd-header, .se-header) {
+    display: grid !important;
+    gap: 0.9rem !important;
+    align-items: start !important;
+  }
+
+  :where(.ad2-stats-grid, .ad-stats-grid, .ae-stats, .ei-stats, .pd-stats, .sa-stats, .td-stats) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  :where(.ad2-grid, .ad2-action-grid, .ad2-week-grid, .ad-grid-2, .ad-actions-grid, .ms-grid-2, .mt-grid-2, .pd-grid, .se-row2, .mp-row2, .ss-header, .ss-academic-grid, .ss-grid-2, .ss-grid-3, .ss-inline-grid, .ss-inline-grid.students, .td-scanner-wrap, .td-scan-grid, .ra-command-grid) {
+    grid-template-columns: 1fr !important;
+  }
+
+  :where(.mp-toolbar, .ms-toolbar, .mt-toolbar, .ae-toolbar, .eh-toolbar, .ei-toolbar, .td-filter-row, .sa-filters-row, .ss-btn-row, .dr-actions, .ra-actions, .hp-cta-actions, .lg-panel-actions) {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  :where(.ms-search-wrap, .mt-search-wrap, .mp-search, .eh-search, .ei-search, .ae-search, .sa-search, .td-filter-row .td-input, .td-filter-row .td-select, .sa-input, .sa-select, .ms-filter-wrap, .mt-filter-wrap) {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  :where(.ad2-table-wrap, .ad-table-wrap, .ae-table-wrap, .mp-table-wrap, .ms-table-wrap, .mt-table-wrap, .pd-table-wrap, .se-table-wrap, .eh-list, .ei-table-wrap, .sa-table-wrap, .td-table-wrap, .ra-school-list) {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  :where(.ms-modal, .mt-modal, .mp-modal, .eh-modal, .ei-modal, .ae-modal) {
+    width: min(100%, calc(100vw - 2rem)) !important;
+    max-height: min(88dvh, 760px) !important;
+  }
+}
+
+@media (max-width: 720px) {
+  :where(.ad2-root, .ad-root, .ae-root, .mp-root, .ms-root, .mt-root, .ss-root, .eh-root, .pd-root, .se-root, .ei-root, .sa-root, .td-root, .ra-root, .lg-root, .hp-root, .dr-root) {
+    font-size: 15px !important;
+  }
+
+  :where(.ad2-main, .ad-main, .ae-main, .mp-main, .ms-main, .mt-main, .eh-main, .pd-main, .se-main, .ei-main, .sa-main, .td-main) {
+    padding: 0.85rem !important;
+  }
+
+  :where(.hp-shell, .lg-shell, .dr-wrap, .ra-wrap, .ss-wrap) {
+    width: min(100%, calc(100% - 1rem)) !important;
+  }
+
+  :where(.hp-nav, .lg-nav, .dr-head, .ra-hero-head) {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  :where(.hp-brand, .lg-brand) {
+    min-width: 0 !important;
+  }
+
+  :where(.hp-brand span, .lg-brand-copy span, .lg-panel-brand span) {
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  :where(.hp-links, .hp-actions, .hp-cta-actions, .lg-actions, .dr-actions, .ra-actions, .ss-header-actions) {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  :where(.hp-links a, .hp-links button, .hp-btn, .lg-submit, .lg-btn-primary, .lg-secondary, .dr-btn, .ra-btn, .ss-btn-primary, .ss-btn-back, .ss-btn-skip, .ss-btn-add, .ad2-action-btn, .ad2-primary, .ad2-link-btn) {
+    width: 100% !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  :where(.ad2-page-title, .ad-page-title, .pd-header h1, .td-header h1, .eh-header h1, .ei-header h1, .sa-header h1, .se-header h1, .ss-title, .ms-page-title, .mt-page-title, .mp-title, .ae-title, .hp-copy h1, .lg-title, .dr-title, .ra-title) {
+    font-size: clamp(1.85rem, 9.2vw, 2.55rem) !important;
+    line-height: 1.16 !important;
+    letter-spacing: 0 !important;
+    overflow-wrap: anywhere;
+  }
+
+  :where(.hp-copy h1, .lg-title) {
+    max-width: 100% !important;
+  }
+
+  :where(.ad2-stats-grid, .ad-stats-grid, .ae-stats, .ei-stats, .pd-stats, .sa-stats, .td-stats, .ss-header-metrics) {
+    grid-template-columns: 1fr !important;
+  }
+
+  :where(.ad2-card-head, .ad-card-header, .pd-card-head, .sa-card-head, .td-card-head, .ss-card-head, .eh-modal-head, .ei-modal-head, .mp-modal-head, .mt-modal-header, .ms-modal-header) {
+    gap: 0.75rem !important;
+    padding: 1rem !important;
+  }
+
+  :where(.ad2-card-body, .ad-card-body, .pd-card-body, .sa-card-body, .td-card-body, .se-card-body, .ss-card, .eh-modal-body, .ei-modal-body, .mp-modal-body, .mt-modal-body, .ms-modal-body) {
+    padding: 1rem !important;
+  }
+
+  :where(.ad2-item-top, .td-item-top, .pd-card-head, .sa-card-head, .ad2-card-head) {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  :where(.eh-modal-foot, .ei-modal-foot, .mp-modal-foot, .mt-modal-footer, .ms-modal-footer, .ae-modal-foot) {
+    padding: 1rem !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  :where(.eh-modal-foot, .ei-modal-foot, .mp-modal-foot, .mt-modal-footer, .ms-modal-footer, .ae-modal-foot) > * {
+    width: 100% !important;
+  }
+
+  :where(.hp-stage) {
+    min-height: auto !important;
+    padding: 1rem !important;
+  }
+
+  :where(.hp-card-main, .hp-card-side, .hp-card-foot, .hp-phone) {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    margin: 0 0 1rem !important;
+  }
+
+  :where(.hp-phone) {
+    max-width: 260px !important;
+    margin-inline: auto !important;
+  }
+
+  :where(.td-toast-wrap) {
+    left: 1rem !important;
+    right: 1rem !important;
+    bottom: 1rem !important;
+  }
+
+  :where(.td-toast) {
+    width: 100% !important;
+  }
+
+  :where(th, td) {
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 440px) {
+  :where(.ad2-sidebar, .ad-sidebar, .ae-sidebar, .mp-sidebar, .ms-sidebar, .mt-sidebar, .pd-sidebar, .se-sidebar, .eh-sidebar, .ei-sidebar, .sa-sidebar, .td-sidebar) {
+    inset: 0.5rem 0.5rem auto !important;
+    margin: 0.5rem !important;
+    border-radius: 16px !important;
+  }
+
+  :where(.ad2-main, .ad-main, .ae-main, .mp-main, .ms-main, .mt-main, .eh-main, .pd-main, .se-main, .ei-main, .sa-main, .td-main, .ss-root) {
+    padding-inline: 0.65rem !important;
+  }
+
+  :where(.ad2-nav-item, .ad-nav-item, .ae-nav-item, .mp-nav-item, .ms-nav-item, .mt-nav-item, .pd-nav-item, .se-nav-item, .eh-nav-item, .ei-nav-item, .sa-nav-item, .td-nav-item) {
+    padding-inline: 0.8rem !important;
+  }
+
+  :where(.hp-feature, .hp-role, .hp-step, .hp-cta, .lg-hero, .lg-panel, .dr-card, .ra-card) {
+    padding: 1rem !important;
+  }
+}
+
+/* Interaction guardrails for admin mobile tables and generated QR SVGs. */
+:where(.ms-action-btn, .mt-action-btn, .mp-action-btn, .ae-action-btn, .ei-action-btn, .sa-action-btn, .td-action-btn) {
+  min-width: 44px !important;
+  min-height: 44px !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 20 !important;
+}
+
+:where(.ms-table tbody tr:hover) {
+  transform: none !important;
+}
+
+:where(.ms-action-cell) {
+  position: relative !important;
+  z-index: 5 !important;
+}
+
+:where(.ms-action-group) {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end !important;
+  gap: 0.45rem !important;
+}
+
+:where(.ms-action-btn) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.35rem !important;
+  padding: 0.65rem 0.72rem !important;
+  line-height: 1 !important;
+  user-select: none !important;
+  touch-action: manipulation !important;
+}
+
+:where(.ms-action-btn svg) {
+  flex: 0 0 auto !important;
+  pointer-events: none !important;
+}
+
+:where(.ms-action-btn span) {
+  pointer-events: none !important;
+  font-size: 0.76rem !important;
+  font-weight: 800 !important;
+}
+
+:where(.ms-modal-overlay, .mt-modal-overlay, .mp-modal-overlay, .ae-modal-overlay, .ei-modal-overlay, .eh-modal-overlay) {
+  z-index: 10000 !important;
+}
+
+:where(.ms-qr-box svg) {
+  display: block !important;
+  width: min(260px, 100%) !important;
+  height: auto !important;
+  background: #ffffff !important;
+}
+
+:where(.ms-qr-box svg rect[fill="#ffffff"]) {
+  fill: #ffffff !important;
+}
+
+:where(.ms-qr-box svg rect[fill="#111111"]) {
+  fill: #111111 !important;
+}
+
+@media (max-width: 720px) {
+  :where(.ms-table-wrap, .mt-table-wrap, .mp-table-wrap, .ae-table-wrap, .ei-table-wrap, .sa-table-wrap, .td-table-wrap) {
+    overflow-x: auto !important;
+    padding-bottom: 0.25rem;
+  }
+
+  :where(.ms-table td:last-child, .mt-table td:last-child, .mp-table td:last-child, .ae-table td:last-child, .ei-table td:last-child, .sa-table td:last-child, .td-table td:last-child) {
+    min-width: 230px !important;
+  }
+
+  :where(.ms-nav-item, .mt-nav-item, .mp-nav-item, .ae-nav-item, .ei-nav-item, .eh-nav-item, .sa-nav-item, .td-nav-item, .pd-nav-item, .se-nav-item) {
+    pointer-events: auto !important;
+  }
+}

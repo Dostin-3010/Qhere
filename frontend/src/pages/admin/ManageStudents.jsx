@@ -696,6 +696,25 @@ export default function ManageStudents() {
     setQrStudent(updatedStudent)
   }
 
+  const openQrModal = (event, student) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setQrStudent(student)
+  }
+
+  const openEditModal = (event, student) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setEditStudent(student)
+    setShowForm(true)
+  }
+
+  const openDeleteModal = (event, student) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setDeleteStudent(student)
+  }
+
   // Filtrado
   const filtered = students.filter(s => {
     const matchSearch = !search ||
@@ -802,19 +821,37 @@ export default function ManageStudents() {
                               : s.grade_sections?.turno === 'noche' ? '🌙 Noche'
                               : '—'}
                           </td>
-                          <td>
-                            <div style={{display:'flex', justifyContent:'flex-end', gap:4}}>
-                              <button className="ms-action-btn qr" title="Ver QR"
-                                onClick={() => setQrStudent(s)}>
+                          <td className="ms-action-cell">
+                            <div className="ms-action-group">
+                              <button
+                                type="button"
+                                className="ms-action-btn qr"
+                                title="Ver QR"
+                                aria-label={`Ver QR de ${s.nombre}`}
+                                onClick={event => openQrModal(event, s)}
+                              >
                                 <IcoQR />
+                                <span>QR</span>
                               </button>
-                              <button className="ms-action-btn edit" title="Editar"
-                                onClick={() => { setEditStudent(s); setShowForm(true) }}>
+                              <button
+                                type="button"
+                                className="ms-action-btn edit"
+                                title="Editar"
+                                aria-label={`Editar ${s.nombre}`}
+                                onClick={event => openEditModal(event, s)}
+                              >
                                 <IcoEdit />
+                                <span>Editar</span>
                               </button>
-                              <button className="ms-action-btn del" title="Eliminar"
-                                onClick={() => setDeleteStudent(s)}>
+                              <button
+                                type="button"
+                                className="ms-action-btn del"
+                                title="Eliminar"
+                                aria-label={`Eliminar ${s.nombre}`}
+                                onClick={event => openDeleteModal(event, s)}
+                              >
                                 <IcoTrash />
+                                <span>Eliminar</span>
                               </button>
                             </div>
                           </td>

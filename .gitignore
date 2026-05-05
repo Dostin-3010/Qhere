@@ -43,3 +43,4 @@ frontend/design-check/
 # Archivos locales grandes o temporales
 *.tmp
 *.bak
+tools/ngrok/
