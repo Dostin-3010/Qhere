@@ -133,6 +133,21 @@ const STYLES = `
   .pd-btn-secondary { background:${C.skyLight}; color:${C.navy}; border:1px solid ${C.border}; width:100%; justify-content:center; margin-top:8px; }
   .pd-btn-secondary:hover { background:${C.sky}; }
 
+  .pd-live-card { border:1px solid ${C.border}; border-radius:14px; padding:15px; background:linear-gradient(180deg,#fff,#F5FAFD); }
+  .pd-live-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .pd-live-status { display:flex; align-items:center; gap:10px; min-width:0; }
+  .pd-live-dot { width:12px; height:12px; border-radius:999px; flex-shrink:0; box-shadow:0 0 0 4px rgba(27,63,107,.08); }
+  .pd-live-title { font-size:14px; font-weight:800; color:${C.dark}; line-height:1.25; }
+  .pd-live-copy { font-size:12px; color:${C.mid}; line-height:1.45; margin-top:3px; }
+  .pd-live-pill { border-radius:999px; padding:5px 9px; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; }
+  .pd-live-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:12px; }
+  .pd-live-metric { border:1px solid ${C.border}; border-radius:10px; padding:9px 10px; background:#fff; }
+  .pd-live-label { font-size:10px; font-weight:800; color:${C.mid}; text-transform:uppercase; letter-spacing:.04em; }
+  .pd-live-value { font-size:13px; font-weight:700; color:${C.dark}; margin-top:3px; }
+  .pd-mini-list { display:grid; gap:8px; margin-top:14px; padding-top:13px; border-top:1px solid ${C.border}; }
+  .pd-mini-row { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:${C.mid}; }
+  .pd-mini-row strong { color:${C.dark}; font-size:12px; }
+
   .pd-alert-list { display:grid; gap:10px; }
   .pd-alert-item { border:1px solid ${C.border}; border-radius:12px; padding:13px; background:linear-gradient(180deg,#fff,#F5FAFD); }
   .pd-alert-item.urgent { border-color:#fecaca; background:linear-gradient(180deg,#fff7f7,#fff); }
@@ -172,6 +187,16 @@ function formatDateTime(value) {
   return new Date(value).toLocaleDateString('es-DO', { day: 'numeric', month: 'short' })
 }
 
+function formatDateKey(date = new Date()) {
+  const local = new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
+  return local.toISOString().slice(0, 10)
+}
+
+function formatTime(value) {
+  if (!value) return 'Pendiente'
+  return String(value).slice(0, 5)
+}
+
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const DIAS  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
 
@@ -187,6 +212,18 @@ const TIPOS_LABEL = {
 }
 const STATUS_LABEL = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada' }
 const CHANNEL_LABEL = { email: 'Correo', whatsapp: 'WhatsApp', sms: 'SMS', push: 'Push', panel: 'Panel' }
+const ATTENDANCE_LABEL = {
+  presente: 'Presente',
+  tarde: 'Tarde',
+  ausente: 'Ausente',
+  justificado: 'Justificado',
+}
+const ATTENDANCE_TONE = {
+  presente: { color: '#16a34a', bg: '#dcfce7', copy: 'Entrada registrada correctamente.' },
+  tarde: { color: '#ca8a04', bg: '#fef3c7', copy: 'Entrada registrada con tardanza.' },
+  ausente: { color: '#dc2626', bg: '#fee2e2', copy: 'Ausencia registrada para hoy.' },
+  justificado: { color: '#7c3aed', bg: '#ede9fe', copy: 'Ausencia justificada.' },
+}
 
 function buildAlertText(alert) {
   const payload = alert.payload || {}
@@ -203,6 +240,17 @@ function buildAlertText(alert) {
 
   if (alert.template_key === 'attendance_absence') {
     return `${studentName} fue marcado como ausente el ${date}. Puedes enviar una excusa si aplica.`
+  }
+
+  if (alert.template_key === 'attendance_correction') {
+    const previous = ATTENDANCE_LABEL[payload.previous_attendance_status] || 'estado anterior'
+    const current = ATTENDANCE_LABEL[payload.attendance_status] || 'nuevo estado'
+    return `${studentName} tuvo una correccion el ${date}: de ${previous.toLowerCase()} a ${current.toLowerCase()}.`
+  }
+
+  if (alert.template_key === 'attendance_removed') {
+    const previous = ATTENDANCE_LABEL[payload.previous_attendance_status] || 'asistencia'
+    return `Se elimino el registro de ${previous.toLowerCase()} de ${studentName} del ${date}.`
   }
 
   return payload.message || payload.body || 'Tienes una notificacion relacionada con la asistencia escolar.'
@@ -273,6 +321,28 @@ export default function ParentDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id, selectedHijo?.id])
+
+  useEffect(() => {
+    if (!selectedHijo?.id) return undefined
+
+    const channel = supabase
+      .channel(`parent-attendance-${selectedHijo.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'attendance',
+        filter: `student_id=eq.${selectedHijo.id}`,
+      }, () => {
+        loadAttendance(selectedHijo.id)
+        loadAlerts(selectedHijo.id)
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedHijo?.id, calYear, calMonth])
 
   function injectStyles() {
     if (document.getElementById('pd-styles')) return
@@ -381,7 +451,7 @@ export default function ParentDashboard() {
         .select('*')
         .eq('recipient_id', profile.id)
         .eq('student_id', studentId)
-        .in('template_key', ['attendance_absence', 'attendance_late', 'attendance_late_recurrence'])
+        .in('template_key', ['attendance_absence', 'attendance_late', 'attendance_late_recurrence', 'attendance_correction', 'attendance_removed'])
         .order('created_at', { ascending: false })
         .limit(20)
 
@@ -432,6 +502,24 @@ export default function ParentDashboard() {
   const totalDias = stats.presentes + stats.tardanzas + stats.ausentes + stats.justificados
   const pct = totalDias > 0 ? Math.round(((stats.presentes + stats.tardanzas + stats.justificados) / totalDias) * 100) : 0
   const pctColor = pct >= 90 ? '#16a34a' : pct >= 75 ? '#ca8a04' : '#dc2626'
+  const todayKey = formatDateKey(now)
+  const todayAttendance = attendance
+    .filter(record => record.fecha === todayKey)
+    .sort((a, b) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')))[0] || null
+  const todayStatus = todayAttendance?.estado || 'sin_registro'
+  const todayTone = ATTENDANCE_TONE[todayStatus] || {
+    color: C.mid,
+    bg: C.skyLight,
+    copy: 'Todavia no hay registro de asistencia para hoy.',
+  }
+  const todayLabel = ATTENDANCE_LABEL[todayStatus] || 'Sin registro'
+  const recentAttendance = [...attendance]
+    .sort((a, b) => {
+      const byDate = String(b.fecha || '').localeCompare(String(a.fecha || ''))
+      if (byDate !== 0) return byDate
+      return String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || ''))
+    })
+    .slice(0, 4)
   const publishedGrades = gradeEntries.filter(entry => entry.status !== 'draft')
   const gradeAverage = publishedGrades.length > 0
     ? Math.round(publishedGrades.reduce((sum, entry) => {
@@ -671,8 +759,64 @@ export default function ParentDashboard() {
                       <div className="pd-card" style={{ marginBottom: 24 }}>
                         <div className="pd-card-head">
                           <div>
+                            <h3>Asistencia de hoy</h3>
+                            <p>Estado actual del hijo seleccionado</p>
+                          </div>
+                        </div>
+                        <div className="pd-card-body">
+                          <div className="pd-live-card">
+                            <div className="pd-live-top">
+                              <div className="pd-live-status">
+                                <span className="pd-live-dot" style={{ background: todayTone.color }} />
+                                <div>
+                                  <div className="pd-live-title">{todayLabel}</div>
+                                  <div className="pd-live-copy">{todayTone.copy}</div>
+                                </div>
+                              </div>
+                              <span className="pd-live-pill" style={{ color: todayTone.color, background: todayTone.bg }}>
+                                Hoy
+                              </span>
+                            </div>
+
+                            <div className="pd-live-grid">
+                              <div className="pd-live-metric">
+                                <div className="pd-live-label">Entrada</div>
+                                <div className="pd-live-value">{formatTime(todayAttendance?.hora_entrada)}</div>
+                              </div>
+                              <div className="pd-live-metric">
+                                <div className="pd-live-label">Salida</div>
+                                <div className="pd-live-value">{formatTime(todayAttendance?.hora_salida)}</div>
+                              </div>
+                            </div>
+
+                            <div className="pd-mini-list">
+                              {recentAttendance.length === 0 ? (
+                                <div className="pd-mini-row">
+                                  <span>No hay registros recientes.</span>
+                                </div>
+                              ) : (
+                                recentAttendance.map(record => {
+                                  const tone = ATTENDANCE_TONE[record.estado] || todayTone
+                                  return (
+                                    <div key={record.id} className="pd-mini-row">
+                                      <span><strong>{formatFecha(record.fecha)}</strong></span>
+                                      <span style={{ color: tone.color, fontWeight: 700 }}>
+                                        {ATTENDANCE_LABEL[record.estado] || record.estado || 'Registrado'}
+                                      </span>
+                                    </div>
+                                  )
+                                })
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pd-card" style={{ marginBottom: 24 }}>
+                        <div className="pd-card-head">
+                          <div>
                             <h3>Alertas de asistencia</h3>
-                            <p>Notificaciones por ausencia o tardanza</p>
+                            <p>Ausencias, tardanzas y correcciones</p>
                           </div>
                         </div>
                         <div className="pd-card-body">
@@ -683,6 +827,8 @@ export default function ParentDashboard() {
                               {alerts.map(alert => {
                                 const isAbsence = alert.template_key === 'attendance_absence'
                                 const isRecurrentLate = alert.template_key === 'attendance_late_recurrence'
+                                const isCorrection = alert.template_key === 'attendance_correction'
+                                const isRemoved = alert.template_key === 'attendance_removed'
                                 const channels = [...new Set(alert.channels || [alert.channel])].filter(Boolean)
                                 const statuses = [...new Set(alert.statuses || [alert.status])].filter(Boolean)
 
@@ -690,14 +836,14 @@ export default function ParentDashboard() {
                                   <div key={`${alert.id}:${alert.template_key}`} className={`pd-alert-item${isAbsence ? ' urgent' : ''}`}>
                                     <div className="pd-alert-top">
                                       <div className="pd-alert-title">
-                                        {alert.subject || (isAbsence ? 'Ausencia registrada' : (isRecurrentLate ? 'Tardanza recurrente' : 'Tardanza registrada'))}
+                                        {alert.subject || (isRemoved ? 'Registro eliminado' : (isCorrection ? 'Asistencia corregida' : (isAbsence ? 'Ausencia registrada' : (isRecurrentLate ? 'Tardanza recurrente' : 'Tardanza registrada'))))}
                                       </div>
                                       <div className="pd-alert-date">{formatDateTime(alert.created_at)}</div>
                                     </div>
                                     <div className="pd-alert-copy">{buildAlertText(alert)}</div>
                                     <div className="pd-alert-meta">
                                       <span className={`pd-alert-chip${isAbsence ? ' danger' : ' warn'}`}>
-                                        {isAbsence ? 'Ausencia' : (isRecurrentLate ? 'Recurrente' : 'Tarde')}
+                                        {isAbsence ? 'Ausencia' : (isRemoved ? 'Eliminado' : (isCorrection ? 'Corregido' : (isRecurrentLate ? 'Recurrente' : 'Tarde')))}
                                       </span>
                                       {channels.map(channel => (
                                         <span key={channel} className="pd-alert-chip">{CHANNEL_LABEL[channel] || channel}</span>

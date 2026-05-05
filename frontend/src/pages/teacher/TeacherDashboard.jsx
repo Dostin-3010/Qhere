@@ -426,6 +426,44 @@ async function postWithSupabaseSession(path, payload) {
   return body
 }
 
+async function deleteWithSupabaseSession(path) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+
+  if (!token) {
+    throw new Error('No hay una sesion activa para autorizar la operacion.')
+  }
+
+  let response
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+  } catch {
+    const error = new Error('No se pudo conectar con el backend de Flask. Verifica que este corriendo en http://localhost:5000.')
+    error.code = 'BACKEND_UNREACHABLE'
+    throw error
+  }
+
+  let body = null
+
+  try {
+    body = await response.json()
+  } catch {
+    body = null
+  }
+
+  if (!response.ok) {
+    throw new Error(body?.error || `Error ${response.status} al conectar con el backend.`)
+  }
+
+  return body
+}
+
 function formatTimeLabel(value) {
   if (!value) return '-'
   return String(value).slice(0, 5)
@@ -1387,23 +1425,14 @@ export default function TeacherDashboard() {
     setDeletingAttendanceId(record.id)
 
     try {
-      await registrarAudit('eliminar_registro_asistencia', 'attendance', record.id, {
-        student_id: record.student_id,
-        estado: record.estado,
-        fecha: record.fecha,
-      })
-
-      const { error } = await supabase
-        .from('attendance')
-        .delete()
-        .eq('id', record.id)
-
-      if (error) throw error
+      const result = await deleteWithSupabaseSession(`/attendance/${record.id}`)
 
       const nextList = attendanceList.filter(item => item.id !== record.id)
       setAttendanceList(nextList)
       setStats(calculateAttendanceStats(nextList))
-      toast('Registro eliminado.', 'success')
+      const alertQueued = result?.alert?.queued || 0
+      const deliveryMessage = alertQueued > 0 ? ' Padre vinculado notificado.' : ''
+      toast(`Registro eliminado.${deliveryMessage}`, 'success')
     } catch (err) {
       console.error(err)
       toast(err.message || 'No se pudo eliminar el registro.', 'error')

@@ -797,6 +797,121 @@ def _queue_attendance_alerts(student, attendance, fecha, geo_meta=None):
     }
 
 
+def _queue_attendance_resolution_alerts(student, attendance, fecha, previous_status, next_status=None, action='updated'):
+    previous_status = (previous_status or '').strip().lower()
+    next_status = (next_status or '').strip().lower()
+    if previous_status not in ['ausente', 'tarde']:
+        return None
+    if action == 'updated' and next_status in ['ausente', 'tarde']:
+        return None
+
+    recipients = _get_parent_recipients(student)
+    if not recipients:
+        return None
+
+    student_name = student.get('nombre') or 'Estudiante'
+    previous_label = _status_label(previous_status)
+    next_label = _status_label(next_status) if next_status else 'sin registro'
+    alert_type = 'removed' if action == 'deleted' else 'correction'
+    subject = (
+        f'Registro eliminado: {student_name}'
+        if action == 'deleted'
+        else f'Asistencia corregida: {student_name}'
+    )
+    message = (
+        f'Se elimino el registro de {previous_label.lower()} de {student_name} correspondiente al {fecha}.'
+        if action == 'deleted'
+        else f'Se corrigio la asistencia de {student_name} del {fecha}: de {previous_label.lower()} a {next_label.lower()}.'
+    )
+
+    base_payload = {
+        'student_name': student_name,
+        'student_code': student.get('matricula'),
+        'attendance_date': fecha,
+        'attendance_id': attendance.get('id'),
+        'previous_attendance_status': previous_status,
+        'attendance_status': next_status,
+        'message': message,
+        'body': message,
+    }
+
+    queue_rows = []
+    direct_email_results = []
+    for recipient in recipients:
+        channels = []
+        if recipient.get('email'):
+            channels.append('email')
+        if recipient.get('phone'):
+            channels.append('whatsapp')
+
+        for channel in channels:
+            row = {
+                'recipient_id': recipient['id'],
+                'student_id': student['id'],
+                'related_table': 'attendance',
+                'related_id': attendance.get('id'),
+                'channel': channel,
+                'template_key': f'attendance_{alert_type}',
+                'subject': subject,
+                'payload': {
+                    **base_payload,
+                    'recipient_name': recipient.get('full_name'),
+                    'recipient_relation': recipient.get('relacion'),
+                    'channel': channel,
+                },
+                'priority': 6,
+                'status': 'pending',
+                'scheduled_for': datetime.utcnow().isoformat(),
+            }
+
+            if channel == 'email':
+                body_lines = [
+                    f'Hola {recipient.get("full_name") or "familia"},',
+                    '',
+                    message,
+                    '',
+                    f'Estudiante: {student_name}',
+                    f'Matricula: {student.get("matricula") or "-"}',
+                    f'Estado anterior: {previous_label}',
+                    f'Estado actual: {next_label}',
+                    f'Fecha: {fecha}',
+                    '',
+                    'QHere - Control de Asistencia',
+                ]
+                try:
+                    from ..services.notification_service import send_direct_email
+                    delivery = send_direct_email(recipient['email'], subject, body_lines)
+                    direct_email_results.append(delivery)
+                    if delivery.get('channel') == 'email':
+                        row['status'] = 'sent'
+                        row['sent_at'] = datetime.utcnow().isoformat()
+                    else:
+                        row['error_message'] = delivery.get('fallback_reason')
+                except Exception as exc:
+                    direct_email_results.append({
+                        'channel': 'email',
+                        'recipient_email': recipient.get('email'),
+                        'status': 'queued',
+                        'error': str(exc),
+                    })
+
+            queue_rows.append(row)
+
+    if not queue_rows:
+        return None
+
+    try:
+        supabase.table('notification_queue').insert(queue_rows).execute()
+    except Exception:
+        return None
+
+    return {
+        'type': alert_type,
+        'queued': len(queue_rows),
+        'direct_email': direct_email_results,
+    }
+
+
 @attendance_bp.route('/<attendance_id>/status', methods=['POST', 'PATCH'])
 def update_attendance_status(attendance_id):
     try:
@@ -857,6 +972,15 @@ def update_attendance_status(attendance_id):
                 updated_attendance,
                 updated_attendance.get('fecha') or datetime.utcnow().date().isoformat(),
             )
+        else:
+            alert_meta = _queue_attendance_resolution_alerts(
+                student,
+                updated_attendance,
+                updated_attendance.get('fecha') or datetime.utcnow().date().isoformat(),
+                previous_status,
+                next_status,
+                action='updated',
+            )
 
         _insert_audit(user_id, 'editar_estado_asistencia', attendance_id, {
             'from': previous_status,
@@ -881,6 +1005,69 @@ def update_attendance_status(attendance_id):
             'student': student,
             'alert': alert_meta,
             'message': 'Estado actualizado correctamente.',
+        }), 200
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 401
+    except PermissionError as exc:
+        return jsonify({'error': str(exc)}), 403
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+@attendance_bp.route('/<attendance_id>', methods=['DELETE'])
+def delete_attendance_record(attendance_id):
+    try:
+        user_id = _current_user()
+        profile = _get_profile(user_id)
+        role = (profile.get('role') or '').strip().lower()
+        if role not in ['admin', 'teacher']:
+            raise PermissionError('No tienes permiso para eliminar este registro.')
+
+        attendance_result = supabase.table('attendance') \
+            .select('*') \
+            .eq('id', attendance_id) \
+            .single() \
+            .execute()
+        attendance = attendance_result.data or {}
+        if not attendance:
+            return jsonify({'error': 'Registro de asistencia no encontrado.'}), 404
+
+        student = _get_student(attendance.get('student_id'))
+        if not student:
+            return jsonify({'error': 'Estudiante del registro no encontrado.'}), 404
+
+        if role == 'teacher':
+            assigned_sections = profile.get('secciones_ids') if isinstance(profile.get('secciones_ids'), list) else []
+            assigned_sections = {str(section_id) for section_id in assigned_sections if section_id}
+            owns_record = str(attendance.get('teacher_id') or '') == str(user_id)
+            owns_section = str(student.get('grade_section_id') or '') in assigned_sections
+            if not owns_record and not owns_section:
+                raise PermissionError('No puedes eliminar asistencia de este estudiante.')
+
+        alert_meta = _queue_attendance_resolution_alerts(
+            student,
+            attendance,
+            attendance.get('fecha') or datetime.utcnow().date().isoformat(),
+            attendance.get('estado'),
+            None,
+            action='deleted',
+        )
+
+        supabase.table('attendance').delete().eq('id', attendance_id).execute()
+
+        _insert_audit(user_id, 'eliminar_registro_asistencia', attendance_id, {
+            'student_id': attendance.get('student_id'),
+            'estado': attendance.get('estado'),
+            'fecha': attendance.get('fecha'),
+            'alerts_queued': alert_meta.get('queued') if alert_meta else 0,
+        })
+
+        return jsonify({
+            'action': 'deleted',
+            'attendance': attendance,
+            'student': student,
+            'alert': alert_meta,
+            'message': 'Registro eliminado correctamente.',
         }), 200
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 401
