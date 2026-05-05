@@ -130,6 +130,71 @@ function getMesesOpciones() {
   return opciones.reverse()
 }
 
+const REPORT_COLORS = {
+  navy: '1B3F6B',
+  navyDeep: '102847',
+  navyMid: '2A5590',
+  skyPale: 'EEF6FB',
+  skyLight: 'D8EAF4',
+  border: 'C8DFF0',
+  dark: '0D2238',
+  mid: '4A6A8A',
+  green: '16A34A',
+  yellow: 'CA8A04',
+  red: 'DC2626',
+  purple: '7C3AED',
+  white: 'FFFFFF',
+}
+
+const STATUS_LABEL = {
+  presente: 'Presente',
+  tarde: 'Tarde',
+  ausente: 'Ausente',
+  justificado: 'Justificado',
+}
+
+function getAttendancePct(row) {
+  if (!row?.total) return 0
+  return Math.round(((row.presentes + row.tardanzas + row.justificados) / row.total) * 100)
+}
+
+function getPctColor(pct) {
+  if (pct >= 90) return REPORT_COLORS.green
+  if (pct >= 75) return REPORT_COLORS.yellow
+  return REPORT_COLORS.red
+}
+
+function safeReportName(value) {
+  return String(value || 'Reporte').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_')
+}
+
+function setCellStyle(ws, address, style = {}) {
+  if (!ws[address]) return
+  ws[address].s = {
+    font: { name: 'Arial', sz: 10, color: { rgb: REPORT_COLORS.dark }, ...(style.font || {}) },
+    alignment: { vertical: 'center', ...(style.alignment || {}) },
+    border: style.border || {
+      top: { style: 'thin', color: { rgb: REPORT_COLORS.border } },
+      bottom: { style: 'thin', color: { rgb: REPORT_COLORS.border } },
+      left: { style: 'thin', color: { rgb: REPORT_COLORS.border } },
+      right: { style: 'thin', color: { rgb: REPORT_COLORS.border } },
+    },
+    fill: style.fill,
+    numFmt: style.numFmt,
+  }
+}
+
+function styleRange(ws, range, style) {
+  const decoded = XLSXUtils.decode_range(range)
+  for (let row = decoded.s.r; row <= decoded.e.r; row++) {
+    for (let col = decoded.s.c; col <= decoded.e.c; col++) {
+      setCellStyle(ws, XLSXUtils.encode_cell({ r: row, c: col }), style)
+    }
+  }
+}
+
+let XLSXUtils = null
+
 // ═══════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════════════════════
@@ -280,7 +345,26 @@ export default function StudentAbsences() {
     setExporting(true)
     try {
       const XLSX = await import('xlsx')
+      XLSXUtils = XLSX.utils
       const mesLabel = mesesOpciones.find(m => m.value === filterMes)?.label || filterMes
+      const seccionEncontrada = secciones.find(s => s.id === filterSeccion)
+      const seccionLabel = filterSeccion === 'todas'
+        ? 'Todas mis secciones'
+        : seccionEncontrada
+          ? `${seccionEncontrada.grado} ${seccionEncontrada.seccion}`
+          : 'Seccion seleccionada'
+      const generatedAt = new Date().toLocaleString('es-DO')
+      const filteredStats = {
+        estudiantes: resumenFiltrado.length,
+        presentes: resumenFiltrado.reduce((sum, r) => sum + r.presentes, 0),
+        tardanzas: resumenFiltrado.reduce((sum, r) => sum + r.tardanzas, 0),
+        ausentes: resumenFiltrado.reduce((sum, r) => sum + r.ausentes, 0),
+        justificados: resumenFiltrado.reduce((sum, r) => sum + r.justificados, 0),
+      }
+      const detalleFiltrado = records.filter(record => {
+        const studentId = record.student_id || record.students?.id
+        return resumenFiltrado.some(row => row.id === studentId)
+      })
 
       // Hoja 1: Resumen por estudiante
       const resumenData = resumenFiltrado.map(r => ({
@@ -293,12 +377,12 @@ export default function StudentAbsences() {
         'Justificados': r.justificados,
         'Total días':   r.total,
         '% Asistencia': r.total > 0
-          ? `${Math.round(((r.presentes + r.tardanzas + r.justificados) / r.total) * 100)}%`
+          ? `${getAttendancePct(r)}%`
           : '—',
       }))
 
       // Hoja 2: Detalle diario
-      const detalleData = records.map(r => ({
+      const detalleData = detalleFiltrado.map(r => ({
         'Fecha':      r.fecha,
         'Estudiante': r.students?.nombre || '—',
         'Matrícula':  r.students?.matricula || '—',
@@ -310,6 +394,29 @@ export default function StudentAbsences() {
       }))
 
       const wb = XLSX.utils.book_new()
+      wb.Props = {
+        Title: `Reporte de asistencia - ${mesLabel}`,
+        Subject: 'QHere Control de Asistencia',
+        Author: 'QHere',
+        Company: 'QHere',
+        CreatedDate: new Date(),
+      }
+      const cover = XLSX.utils.aoa_to_sheet([
+        ['QHere'],
+        ['Reporte de asistencia'],
+        [],
+        ['Periodo', mesLabel],
+        ['Docente', profile?.full_name || '-'],
+        ['Seccion', seccionLabel],
+        ['Generado', generatedAt],
+        [],
+        ['Indicador', 'Valor'],
+        ['Estudiantes', filteredStats.estudiantes],
+        ['Presentes', filteredStats.presentes],
+        ['Tardanzas', filteredStats.tardanzas],
+        ['Ausencias', filteredStats.ausentes],
+        ['Justificadas', filteredStats.justificados],
+      ])
       const ws1 = XLSX.utils.json_to_sheet(resumenData)
       const ws2 = XLSX.utils.json_to_sheet(detalleData)
 
@@ -317,9 +424,58 @@ export default function StudentAbsences() {
       ws1['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 13 }, { wch: 10 }, { wch: 14 }]
       ws2['!cols'] = [{ wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 }]
 
+      cover['!cols'] = [{ wch: 22 }, { wch: 34 }]
+      cover['!rows'] = [{ hpt: 28 }, { hpt: 22 }]
+      cover['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
+      ]
+      styleRange(cover, 'A1:B1', {
+        font: { sz: 22, bold: true, color: { rgb: REPORT_COLORS.white } },
+        fill: { fgColor: { rgb: REPORT_COLORS.navyDeep } },
+        alignment: { horizontal: 'center' },
+      })
+      styleRange(cover, 'A2:B2', {
+        font: { sz: 14, bold: true, color: { rgb: REPORT_COLORS.navy } },
+        fill: { fgColor: { rgb: REPORT_COLORS.skyLight } },
+        alignment: { horizontal: 'center' },
+      })
+      styleRange(cover, 'A9:B9', {
+        font: { bold: true, color: { rgb: REPORT_COLORS.white } },
+        fill: { fgColor: { rgb: REPORT_COLORS.navy } },
+      })
+      styleRange(cover, 'A4:B14', {
+        fill: { fgColor: { rgb: REPORT_COLORS.skyPale } },
+      })
+      styleRange(ws1, `A1:I${Math.max(1, resumenData.length + 1)}`, {
+        fill: { fgColor: { rgb: REPORT_COLORS.skyPale } },
+      })
+      styleRange(ws1, 'A1:I1', {
+        font: { bold: true, color: { rgb: REPORT_COLORS.white } },
+        fill: { fgColor: { rgb: REPORT_COLORS.navy } },
+        alignment: { horizontal: 'center' },
+      })
+      resumenFiltrado.forEach((row, index) => {
+        setCellStyle(ws1, `I${index + 2}`, {
+          font: { bold: true, color: { rgb: getPctColor(getAttendancePct(row)) } },
+          alignment: { horizontal: 'center' },
+        })
+      })
+      styleRange(ws2, `A1:G${Math.max(1, detalleData.length + 1)}`, {
+        fill: { fgColor: { rgb: REPORT_COLORS.skyPale } },
+      })
+      styleRange(ws2, 'A1:G1', {
+        font: { bold: true, color: { rgb: REPORT_COLORS.white } },
+        fill: { fgColor: { rgb: REPORT_COLORS.navy } },
+        alignment: { horizontal: 'center' },
+      })
+      ws1['!autofilter'] = { ref: `A1:I${Math.max(1, resumenData.length + 1)}` }
+      ws2['!autofilter'] = { ref: `A1:G${Math.max(1, detalleData.length + 1)}` }
+
+      XLSX.utils.book_append_sheet(wb, cover, 'Portada')
       XLSX.utils.book_append_sheet(wb, ws1, 'Resumen')
       XLSX.utils.book_append_sheet(wb, ws2, 'Detalle diario')
-      XLSX.writeFile(wb, `Asistencia_${mesLabel.replace(' ', '_')}.xlsx`)
+      XLSX.writeFile(wb, `QHere_Asistencia_${safeReportName(mesLabel)}.xlsx`)
     } catch (err) {
       console.error(err)
     } finally {
@@ -335,6 +491,24 @@ export default function StudentAbsences() {
       const { default: autoTable } = await import('jspdf-autotable')
 
       const mesLabel = mesesOpciones.find(m => m.value === filterMes)?.label || filterMes
+      const seccionEncontrada = secciones.find(s => s.id === filterSeccion)
+      const seccionLabel = filterSeccion === 'todas'
+        ? 'Todas mis secciones'
+        : seccionEncontrada
+          ? `${seccionEncontrada.grado} ${seccionEncontrada.seccion}`
+          : 'Seccion seleccionada'
+      const generatedAt = new Date().toLocaleString('es-DO')
+      const filteredStats = {
+        estudiantes: resumenFiltrado.length,
+        presentes: resumenFiltrado.reduce((sum, r) => sum + r.presentes, 0),
+        tardanzas: resumenFiltrado.reduce((sum, r) => sum + r.tardanzas, 0),
+        ausentes: resumenFiltrado.reduce((sum, r) => sum + r.ausentes, 0),
+        justificados: resumenFiltrado.reduce((sum, r) => sum + r.justificados, 0),
+      }
+      const detalleFiltrado = records.filter(record => {
+        const studentId = record.student_id || record.students?.id
+        return resumenFiltrado.some(row => row.id === studentId)
+      })
       const doc = new jsPDF({ orientation: 'landscape' })
 
       // Encabezado
@@ -345,9 +519,72 @@ export default function StudentAbsences() {
       doc.setTextColor(74, 106, 138)
       doc.text(`Mes: ${mesLabel}   ·   Docente: ${profile?.full_name || '—'}   ·   Generado: ${new Date().toLocaleDateString('es-DO')}`, 14, 26)
 
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const drawHeader = () => {
+        doc.setFillColor(16, 40, 71)
+        doc.rect(0, 0, pageWidth, 30, 'F')
+        doc.setFillColor(232, 33, 39)
+        doc.rect(0, 29, pageWidth, 1.2, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(19)
+        doc.setFont('helvetica', 'bold')
+        doc.text('QHere', 14, 13)
+        doc.setFontSize(11)
+        doc.setFont('helvetica', 'normal')
+        doc.text('Reporte de asistencia', 14, 22)
+        doc.setFontSize(9)
+        doc.text(`Generado: ${generatedAt}`, pageWidth - 14, 13, { align: 'right' })
+        doc.text(`Docente: ${profile?.full_name || '-'}`, pageWidth - 14, 22, { align: 'right' })
+      }
+      const drawFooter = () => {
+        const pages = doc.internal.getNumberOfPages()
+        for (let index = 1; index <= pages; index++) {
+          doc.setPage(index)
+          doc.setDrawColor(200, 223, 240)
+          doc.line(14, pageHeight - 13, pageWidth - 14, pageHeight - 13)
+          doc.setTextColor(74, 106, 138)
+          doc.setFontSize(8)
+          doc.text('QHere - Control de Asistencia', 14, pageHeight - 7)
+          doc.text(`Pagina ${index} de ${pages}`, pageWidth - 14, pageHeight - 7, { align: 'right' })
+        }
+      }
+
+      drawHeader()
+      doc.setTextColor(13, 34, 56)
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.text(`${mesLabel} | ${seccionLabel}`, 14, 40)
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(74, 106, 138)
+      doc.text('Resumen consolidado de asistencia, tardanzas, ausencias y justificaciones.', 14, 46)
+
+      const statCards = [
+        ['Estudiantes', filteredStats.estudiantes, [27, 63, 107]],
+        ['Presentes', filteredStats.presentes, [22, 163, 74]],
+        ['Tardanzas', filteredStats.tardanzas, [202, 138, 4]],
+        ['Ausencias', filteredStats.ausentes, [220, 38, 38]],
+        ['Justificadas', filteredStats.justificados, [124, 58, 237]],
+      ]
+      statCards.forEach(([label, value, color], index) => {
+        const x = 14 + (index * 54)
+        doc.setDrawColor(200, 223, 240)
+        doc.setFillColor(255, 255, 255)
+        doc.roundedRect(x, 53, 49, 20, 3, 3, 'FD')
+        doc.setTextColor(...color)
+        doc.setFontSize(15)
+        doc.setFont('helvetica', 'bold')
+        doc.text(String(value), x + 5, 62)
+        doc.setTextColor(74, 106, 138)
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'normal')
+        doc.text(label, x + 5, 69)
+      })
+
       // Tabla resumen
       autoTable(doc, {
-        startY: 34,
+        startY: 82,
         head: [['Nombre', 'Matrícula', 'Sección', 'Presentes', 'Tardanzas', 'Ausentes', 'Justificados', '% Asistencia']],
         body: resumenFiltrado.map(r => [
           r.nombre,
@@ -358,12 +595,25 @@ export default function StudentAbsences() {
           r.ausentes,
           r.justificados,
           r.total > 0
-            ? `${Math.round(((r.presentes + r.tardanzas + r.justificados) / r.total) * 100)}%`
+            ? `${getAttendancePct(r)}%`
             : '—',
         ]),
-        styles: { fontSize: 10, cellPadding: 4 },
-        headStyles: { fillColor: [27, 63, 107], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 3.4, textColor: [13, 34, 56], lineColor: [200, 223, 240], lineWidth: 0.1 },
+        headStyles: { fillColor: [27, 63, 107], textColor: 255, fontStyle: 'bold', halign: 'center' },
         alternateRowStyles: { fillColor: [238, 246, 251] },
+        margin: { top: 36, bottom: 18 },
+        didDrawPage: drawHeader,
+        didParseCell: (data) => {
+          if (data.section !== 'body') return
+          if ([3, 4, 5, 6, 7].includes(data.column.index)) {
+            data.cell.styles.halign = 'center'
+            data.cell.styles.fontStyle = 'bold'
+          }
+          if (data.column.index === 7) {
+            const pct = parseInt(String(data.cell.raw).replace('%', ''), 10) || 0
+            data.cell.styles.textColor = pct >= 90 ? [22, 163, 74] : pct >= 75 ? [202, 138, 4] : [220, 38, 38]
+          }
+        },
         columnStyles: {
           0: { cellWidth: 55 },
           1: { cellWidth: 28 },
@@ -371,7 +621,58 @@ export default function StudentAbsences() {
         },
       })
 
-      doc.save(`Asistencia_${mesLabel.replace(' ', '_')}.pdf`)
+      doc.addPage('landscape')
+      drawHeader()
+      doc.setTextColor(13, 34, 56)
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Detalle diario', 14, 40)
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(74, 106, 138)
+      doc.text(`${detalleFiltrado.length} registros incluidos segun los filtros actuales.`, 14, 46)
+
+      autoTable(doc, {
+        startY: 54,
+        head: [['Fecha', 'Estudiante', 'Matricula', 'Seccion', 'Entrada', 'Salida', 'Estado']],
+        body: detalleFiltrado.map(r => [
+          r.fecha,
+          r.students?.nombre || '-',
+          r.students?.matricula || '-',
+          r.students?.grade_sections
+            ? `${r.students.grade_sections.grado} ${r.students.grade_sections.seccion}` : '-',
+          r.hora_entrada || '-',
+          r.hora_salida || '-',
+          STATUS_LABEL[r.estado] || r.estado || '-',
+        ]),
+        styles: { fontSize: 8.5, cellPadding: 3, textColor: [13, 34, 56], lineColor: [200, 223, 240], lineWidth: 0.1 },
+        headStyles: { fillColor: [16, 40, 71], textColor: 255, fontStyle: 'bold', halign: 'center' },
+        alternateRowStyles: { fillColor: [238, 246, 251] },
+        margin: { top: 36, bottom: 18 },
+        didDrawPage: drawHeader,
+        didParseCell: (data) => {
+          if (data.section !== 'body' || data.column.index !== 6) return
+          const status = String(data.cell.raw || '').toLowerCase()
+          data.cell.styles.fontStyle = 'bold'
+          data.cell.styles.halign = 'center'
+          if (status.includes('ausente')) data.cell.styles.textColor = [220, 38, 38]
+          else if (status.includes('tarde')) data.cell.styles.textColor = [202, 138, 4]
+          else if (status.includes('justificado')) data.cell.styles.textColor = [124, 58, 237]
+          else data.cell.styles.textColor = [22, 163, 74]
+        },
+        columnStyles: {
+          0: { cellWidth: 24 },
+          1: { cellWidth: 62 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 22, halign: 'center' },
+          5: { cellWidth: 22, halign: 'center' },
+          6: { cellWidth: 28 },
+        },
+      })
+
+      drawFooter()
+      doc.save(`QHere_Asistencia_${safeReportName(mesLabel)}.pdf`)
     } catch (err) {
       console.error(err)
     } finally {
