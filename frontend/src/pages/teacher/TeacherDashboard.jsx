@@ -192,9 +192,9 @@ const STYLES = `
     background:linear-gradient(145deg, rgba(255,255,255,.025), rgba(255,255,255,0));
   }
   .td-qr-viewport::after {
-    content:''; position:absolute; width:58%; height:2px; left:21%; top:50%;
+    content:''; position:absolute; width:62%; height:2px; left:19%; top:50%;
     background:linear-gradient(90deg, transparent, #E82127, transparent);
-    box-shadow:0 0 18px rgba(232,33,39,.75); pointer-events:none; z-index:2;
+    box-shadow:0 0 22px rgba(232,33,39,.85); pointer-events:none; z-index:2;
   }
   #td-qr-reader {
     width:100% !important; height:100% !important; min-height:320px;
@@ -212,9 +212,76 @@ const STYLES = `
   }
   #td-qr-reader canvas { max-width:100%; max-height:100%; }
   #td-qr-reader img { display:none !important; }
-  .td-qr-placeholder { text-align:center; color:#e7e5e4; position:relative; z-index:3; }
-  .td-qr-placeholder svg { opacity:0.82; margin-bottom:10px; color:#E82127; }
-  .td-qr-placeholder p { font-size:13px; }
+  .td-qr-placeholder {
+    text-align:center; color:#f5f5f4; position:relative; z-index:3;
+    display:grid; justify-items:center; gap:14px; transform-style:preserve-3d;
+  }
+  .td-qr-stage {
+    width:142px; height:142px; position:relative; display:grid; place-items:center;
+    perspective:760px; filter:drop-shadow(0 26px 24px rgba(0,0,0,.44));
+  }
+  .td-qr-stage::before {
+    content:''; position:absolute; width:116px; height:22px; left:13px; bottom:-13px;
+    border-radius:50%; background:radial-gradient(ellipse, rgba(232,33,39,.44), rgba(232,33,39,.13) 45%, transparent 72%);
+    filter:blur(7px); transform:rotateX(72deg); opacity:.92;
+  }
+  .td-qr-stage::after {
+    content:''; position:absolute; inset:-22px;
+    background:radial-gradient(circle, rgba(232,33,39,.22), transparent 58%);
+    opacity:.78; animation:td-qr-pulse 2.8s ease-in-out infinite;
+  }
+  .td-qr-float {
+    width:92px; height:92px; position:relative; transform-style:preserve-3d;
+    transform:rotateX(58deg) rotateZ(-42deg) translateZ(0);
+    animation:td-qr-float 3.6s ease-in-out infinite;
+  }
+  .td-qr-face {
+    position:absolute; inset:0; border-radius:15px;
+    background:linear-gradient(145deg, #ff3b45 0%, #E82127 42%, #8f0f18 100%);
+    border:1px solid rgba(255,255,255,.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.34),
+      inset -12px -16px 22px rgba(77,0,8,.38),
+      0 20px 34px rgba(232,33,39,.34);
+    transform:translateZ(10px); overflow:hidden;
+  }
+  .td-qr-face::before {
+    content:''; position:absolute; inset:9px; border-radius:10px;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.82) 0 10px, transparent 10px 18px, rgba(255,255,255,.82) 18px 28px, transparent 28px 38px, rgba(255,255,255,.82) 38px 48px, transparent 48px 56px, rgba(255,255,255,.82) 56px 66px, transparent 66px),
+      linear-gradient(0deg, transparent 0 8px, rgba(255,255,255,.86) 8px 18px, transparent 18px 28px, rgba(255,255,255,.78) 28px 38px, transparent 38px 46px, rgba(255,255,255,.86) 46px 56px, transparent 56px);
+    mix-blend-mode:screen; opacity:.76;
+    clip-path:polygon(0 0, 32% 0, 32% 31%, 0 31%, 0 0, 68% 0, 100% 0, 100% 31%, 68% 31%, 68% 0, 0 68%, 32% 68%, 32% 100%, 0 100%, 0 68%, 48% 48%, 62% 48%, 62% 62%, 48% 62%, 48% 48%, 70% 70%, 100% 70%, 100% 100%, 70% 100%);
+  }
+  .td-qr-face::after {
+    content:''; position:absolute; inset:13px;
+    background:
+      linear-gradient(#fff 0 0) 0 0/18px 18px,
+      linear-gradient(#fff 0 0) 46px 0/18px 18px,
+      linear-gradient(#fff 0 0) 0 46px/18px 18px,
+      linear-gradient(#fff 0 0) 33px 33px/11px 11px,
+      linear-gradient(#fff 0 0) 54px 45px/10px 10px,
+      linear-gradient(#fff 0 0) 42px 57px/9px 9px,
+      linear-gradient(#fff 0 0) 24px 54px/10px 10px;
+    background-repeat:no-repeat; border-radius:7px; opacity:.96;
+    filter:drop-shadow(0 1px 0 rgba(255,255,255,.28));
+  }
+  .td-qr-side {
+    position:absolute; inset:8px -6px -7px 9px; border-radius:15px;
+    background:linear-gradient(145deg, #5f0610, #240105);
+    transform:translateZ(-7px); box-shadow:0 18px 28px rgba(0,0,0,.34);
+  }
+  .td-qr-scan-copy { display:grid; gap:3px; }
+  .td-qr-scan-copy strong { font-size:14px; letter-spacing:.01em; }
+  .td-qr-scan-copy span { font-size:12px; color:rgba(245,245,244,.68); }
+  @keyframes td-qr-float {
+    0%, 100% { transform:rotateX(58deg) rotateZ(-42deg) translate3d(0, 0, 0); }
+    50% { transform:rotateX(58deg) rotateZ(-42deg) translate3d(0, -10px, 16px); }
+  }
+  @keyframes td-qr-pulse {
+    0%, 100% { transform:scale(.92); opacity:.48; }
+    50% { transform:scale(1.08); opacity:.86; }
+  }
 
   /* Scanner btn */
   .td-btn {
@@ -1567,12 +1634,16 @@ export default function TeacherDashboard() {
                 <div className="td-qr-viewport">
                   {!scannerMountVisible ? (
                     <div className="td-qr-placeholder">
-                      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                        <rect x="3" y="14" width="7" height="7"/><rect x="14" y="17" width="7" height="4"/>
-                        <rect x="17" y="14" width="4" height="3"/>
-                      </svg>
-                      <p>La webcam aparecera aqui</p>
+                      <div className="td-qr-stage" aria-hidden="true">
+                        <div className="td-qr-float">
+                          <div className="td-qr-side" />
+                          <div className="td-qr-face" />
+                        </div>
+                      </div>
+                      <div className="td-qr-scan-copy">
+                        <strong>Escanea el QR del carnet</strong>
+                        <span>Activa la camara o sube una captura</span>
+                      </div>
                     </div>
                   ) : null}
                   <div id="td-qr-reader" style={{ width: '100%', height: '100%', display: scannerMountVisible ? 'block' : 'none' }} />
