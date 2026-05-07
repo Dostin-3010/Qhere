@@ -38,6 +38,18 @@ const IcoQR = () => (
     <rect x="18" y="18" width="3" height="3"/>
   </svg>
 )
+
+const QR_PLACEHOLDER_CELLS = [
+  1,1,1,0,1,1,1,0,1,
+  1,0,1,0,1,0,1,0,0,
+  1,1,1,0,1,1,1,0,1,
+  0,0,0,0,0,0,0,0,0,
+  1,1,0,1,1,0,1,0,1,
+  0,1,0,0,1,1,0,1,0,
+  1,1,1,0,1,0,1,1,1,
+  1,0,0,1,0,1,0,0,1,
+  1,1,1,0,1,1,1,0,1,
+]
 const IcoList = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
@@ -217,66 +229,63 @@ const STYLES = `
     display:grid; justify-items:center; gap:14px; transform-style:preserve-3d;
   }
   .td-qr-stage {
-    width:142px; height:142px; position:relative; display:grid; place-items:center;
-    perspective:760px; filter:drop-shadow(0 26px 24px rgba(0,0,0,.44));
+    width:154px; height:154px; position:relative; display:grid; place-items:center;
+    perspective:900px; filter:drop-shadow(0 26px 26px rgba(0,0,0,.46));
   }
   .td-qr-stage::before {
-    content:''; position:absolute; width:116px; height:22px; left:13px; bottom:-13px;
-    border-radius:50%; background:radial-gradient(ellipse, rgba(232,33,39,.44), rgba(232,33,39,.13) 45%, transparent 72%);
-    filter:blur(7px); transform:rotateX(72deg); opacity:.92;
+    content:''; position:absolute; width:118px; height:24px; left:18px; bottom:1px;
+    border-radius:50%; background:radial-gradient(ellipse, rgba(232,33,39,.42), rgba(232,33,39,.16) 46%, transparent 72%);
+    filter:blur(8px); opacity:.9;
   }
   .td-qr-stage::after {
-    content:''; position:absolute; inset:-22px;
-    background:radial-gradient(circle, rgba(232,33,39,.22), transparent 58%);
-    opacity:.78; animation:td-qr-pulse 2.8s ease-in-out infinite;
+    content:''; position:absolute; inset:-18px;
+    background:radial-gradient(circle, rgba(232,33,39,.18), transparent 60%);
+    opacity:.68; animation:td-qr-pulse 3s ease-in-out infinite;
   }
   .td-qr-float {
-    width:92px; height:92px; position:relative; transform-style:preserve-3d;
-    transform:rotateX(58deg) rotateZ(-42deg) translateZ(0);
+    width:116px; height:116px; position:relative; transform-style:preserve-3d;
+    transform:rotateX(10deg) rotateY(-18deg) translateZ(0);
     animation:td-qr-float 3.6s ease-in-out infinite;
   }
   .td-qr-face {
-    position:absolute; inset:0; border-radius:15px;
-    background:linear-gradient(145deg, #ff3b45 0%, #E82127 42%, #8f0f18 100%);
+    position:absolute; inset:0; border-radius:18px; padding:13px;
+    display:grid; grid-template-columns:repeat(9, 1fr); gap:4px;
+    background:linear-gradient(145deg, #ff4049 0%, #E82127 46%, #9f101a 100%);
     border:1px solid rgba(255,255,255,.22);
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.34),
-      inset -12px -16px 22px rgba(77,0,8,.38),
-      0 20px 34px rgba(232,33,39,.34);
-    transform:translateZ(10px); overflow:hidden;
+      inset -14px -16px 24px rgba(77,0,8,.32),
+      0 18px 34px rgba(232,33,39,.28);
+    transform:translateZ(12px); overflow:hidden;
   }
   .td-qr-face::before {
-    content:''; position:absolute; inset:9px; border-radius:10px;
-    background:
-      linear-gradient(90deg, rgba(255,255,255,.82) 0 10px, transparent 10px 18px, rgba(255,255,255,.82) 18px 28px, transparent 28px 38px, rgba(255,255,255,.82) 38px 48px, transparent 48px 56px, rgba(255,255,255,.82) 56px 66px, transparent 66px),
-      linear-gradient(0deg, transparent 0 8px, rgba(255,255,255,.86) 8px 18px, transparent 18px 28px, rgba(255,255,255,.78) 28px 38px, transparent 38px 46px, rgba(255,255,255,.86) 46px 56px, transparent 56px);
-    mix-blend-mode:screen; opacity:.76;
-    clip-path:polygon(0 0, 32% 0, 32% 31%, 0 31%, 0 0, 68% 0, 100% 0, 100% 31%, 68% 31%, 68% 0, 0 68%, 32% 68%, 32% 100%, 0 100%, 0 68%, 48% 48%, 62% 48%, 62% 62%, 48% 62%, 48% 48%, 70% 70%, 100% 70%, 100% 100%, 70% 100%);
+    content:''; position:absolute; inset:0; border-radius:18px;
+    background:linear-gradient(115deg, rgba(255,255,255,.26), transparent 32%, transparent 68%, rgba(255,255,255,.12));
+    pointer-events:none;
   }
   .td-qr-face::after {
-    content:''; position:absolute; inset:13px;
-    background:
-      linear-gradient(#fff 0 0) 0 0/18px 18px,
-      linear-gradient(#fff 0 0) 46px 0/18px 18px,
-      linear-gradient(#fff 0 0) 0 46px/18px 18px,
-      linear-gradient(#fff 0 0) 33px 33px/11px 11px,
-      linear-gradient(#fff 0 0) 54px 45px/10px 10px,
-      linear-gradient(#fff 0 0) 42px 57px/9px 9px,
-      linear-gradient(#fff 0 0) 24px 54px/10px 10px;
-    background-repeat:no-repeat; border-radius:7px; opacity:.96;
-    filter:drop-shadow(0 1px 0 rgba(255,255,255,.28));
+    content:''; position:absolute; inset:11px; border-radius:12px;
+    border:1px solid rgba(255,255,255,.2); pointer-events:none;
+  }
+  .td-qr-cell {
+    border-radius:3px; background:rgba(255,255,255,.12);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .td-qr-cell.on {
+    background:#fff;
+    box-shadow:0 1px 5px rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.09);
   }
   .td-qr-side {
-    position:absolute; inset:8px -6px -7px 9px; border-radius:15px;
-    background:linear-gradient(145deg, #5f0610, #240105);
-    transform:translateZ(-7px); box-shadow:0 18px 28px rgba(0,0,0,.34);
+    position:absolute; inset:8px -9px -10px 10px; border-radius:18px;
+    background:linear-gradient(145deg, #7b0711, #270105);
+    transform:translateZ(-10px); box-shadow:0 18px 28px rgba(0,0,0,.34);
   }
   .td-qr-scan-copy { display:grid; gap:3px; }
   .td-qr-scan-copy strong { font-size:14px; letter-spacing:.01em; }
   .td-qr-scan-copy span { font-size:12px; color:rgba(245,245,244,.68); }
   @keyframes td-qr-float {
-    0%, 100% { transform:rotateX(58deg) rotateZ(-42deg) translate3d(0, 0, 0); }
-    50% { transform:rotateX(58deg) rotateZ(-42deg) translate3d(0, -10px, 16px); }
+    0%, 100% { transform:rotateX(10deg) rotateY(-18deg) translate3d(0, 0, 0); }
+    50% { transform:rotateX(10deg) rotateY(-18deg) translate3d(0, -9px, 12px); }
   }
   @keyframes td-qr-pulse {
     0%, 100% { transform:scale(.92); opacity:.48; }
@@ -1637,7 +1646,11 @@ export default function TeacherDashboard() {
                       <div className="td-qr-stage" aria-hidden="true">
                         <div className="td-qr-float">
                           <div className="td-qr-side" />
-                          <div className="td-qr-face" />
+                          <div className="td-qr-face">
+                            {QR_PLACEHOLDER_CELLS.map((cell, index) => (
+                              <span key={index} className={`td-qr-cell${cell ? ' on' : ''}`} />
+                            ))}
+                          </div>
                         </div>
                       </div>
                       <div className="td-qr-scan-copy">
