@@ -120,9 +120,19 @@ export async function signInWithGoogle() {
 }
 
 export async function sendPasswordReset(email) {
-  const { error } = await supabase.auth.resetPasswordForEmail(email)
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`,
+  })
 
   if (error) throw error
+}
+
+export async function updateCurrentUserPassword(password) {
+  const { data, error } = await supabase.auth.updateUser({ password })
+
+  if (error) throw error
+
+  return data
 }
 
 function validateProfileAccess(profile, schoolId) {

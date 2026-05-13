@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import DirectorRegister from './pages/DirectorRegister'
 import SuperAdminDashboard from './pages/SuperAdminDashboard'
+import ResetPassword from './pages/ResetPassword'
 
 // Estudiante
 import StudentDashboard from './pages/student/StudentDashboard'
@@ -46,6 +47,7 @@ function App() {
       {/* Pública */}
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/director/register" element={<DirectorRegister />} />
 
       <Route path="/super-admin" element={<ProtectedRoute superAdmin />}>

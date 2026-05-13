@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import BrandLogo from '../../components/ui/BrandLogo'
+import { saveSchoolSections } from '../../api/backendApi'
 
 /* ══════════════════════════════════
    ESTILOS
@@ -1020,7 +1021,7 @@ function isPersistedSectionId(value) {
 function buildAcademicLabel(curso, grado) {
   const safeCurso = (curso || '').trim()
   const safeGrado = (grado || '').trim()
-  if (safeCurso && safeGrado) return `${safeCurso} · ${safeGrado}`
+  if (safeCurso && safeGrado) return `${safeCurso} - ${safeGrado}`
   return safeGrado || safeCurso
 }
 
@@ -1028,7 +1029,14 @@ function parseAcademicLabel(value) {
   const normalized = String(value || '').trim()
   if (!normalized) return { curso: '', grado: '' }
 
-  const [curso, grado] = normalized.split('·').map(part => part?.trim()).filter(Boolean)
+  const separator = normalized.includes(' - ')
+    ? ' - '
+    : normalized.includes('·')
+      ? '·'
+      : null
+  const [curso, grado] = separator
+    ? normalized.split(separator).map(part => part?.trim()).filter(Boolean)
+    : []
   if (curso && grado) return { curso, grado }
   return { curso: '', grado: normalized }
 }
@@ -1152,7 +1160,7 @@ function Step1({ data, onChange }) {
 /* ══════════════════════════════════
    STEP 2 — GRADOS Y SECCIONES
    ══════════════════════════════════ */
-function Step2({ secciones, setSecciones }) {
+function Step2({ secciones, setSecciones, onSaveCourses, savingCourses }) {
   const [availableCourses, setAvailableCourses] = useState(CURSOS_DEFAULT)
   const [availableGrades, setAvailableGrades] = useState(GRADOS_DEFAULT)
   const [curso, setCurso] = useState('Primaria')
@@ -1192,14 +1200,55 @@ function Step2({ secciones, setSecciones }) {
     }
   }, [secciones, curso, grado])
 
-  const academicLabel = buildAcademicLabel(curso, grado)
+  const buildSectionRows = ({ targetCurso = curso, targetGrado = grado, targetTurno = turno } = {}) => {
+    const label = buildAcademicLabel(targetCurso, targetGrado)
+    if (!label) return []
 
-  const addCourseToCatalog = () => {
+    const existingKeys = new Set(secciones.map(item => buildSectionKey(item.grado, item.seccion, item.turno)))
+    const lettersToAdd = selectedSections.length ? selectedSections : ['A']
+
+    return lettersToAdd
+      .filter(letter => !existingKeys.has(buildSectionKey(label, letter, targetTurno)))
+      .map(letter => ({
+        grado: label,
+        seccion: letter,
+        turno: targetTurno,
+        id: `${buildSectionKey(label, letter, targetTurno)}::${Date.now()}::${Math.random().toString(36).slice(2, 7)}`,
+        special_schedule_enabled: useSpecialSchedule,
+        hora_entrada_especial: useSpecialSchedule ? specialEntrada : '',
+        hora_limite_tardanza_especial: useSpecialSchedule ? specialTardanza : '',
+        hora_salida_especial: useSpecialSchedule ? specialSalida : '',
+      }))
+  }
+
+  const resetSectionDraft = () => {
+    setUseSpecialSchedule(false)
+    setSpecialEntrada('')
+    setSpecialTardanza('')
+    setSpecialSalida('')
+  }
+
+  const appendAndSaveRows = async (nextRows) => {
+    if (!nextRows.length) return
+
+    const nextSections = [...secciones, ...nextRows]
+    setSecciones(nextSections)
+    resetSectionDraft()
+
+    if (onSaveCourses) {
+      await onSaveCourses(nextSections, { silent: true })
+    }
+  }
+
+  const addCourseToCatalog = async () => {
     const value = newCourse.trim()
     if (!value) return
     setAvailableCourses(prev => prev.includes(value) ? prev : [...prev, value])
     setCurso(value)
     setNewCourse('')
+
+    const nextRows = buildSectionRows({ targetCurso: value })
+    await appendAndSaveRows(nextRows)
   }
 
   const addGradeToCatalog = () => {
@@ -1218,31 +1267,9 @@ function Step2({ secciones, setSecciones }) {
     ))
   }
 
-  const addSeccion = () => {
-    if (!academicLabel) return
-
-    const existingKeys = new Set(secciones.map(item => buildSectionKey(item.grado, item.seccion, item.turno)))
-    const lettersToAdd = selectedSections.length ? selectedSections : ['A']
-    const nextRows = lettersToAdd
-      .filter(letter => !existingKeys.has(buildSectionKey(academicLabel, letter, turno)))
-      .map(letter => ({
-        grado: academicLabel,
-        seccion: letter,
-        turno,
-        id: `${buildSectionKey(academicLabel, letter, turno)}::${Date.now()}::${Math.random().toString(36).slice(2, 7)}`,
-        special_schedule_enabled: useSpecialSchedule,
-        hora_entrada_especial: useSpecialSchedule ? specialEntrada : '',
-        hora_limite_tardanza_especial: useSpecialSchedule ? specialTardanza : '',
-        hora_salida_especial: useSpecialSchedule ? specialSalida : '',
-      }))
-
-    if (!nextRows.length) return
-
-    setSecciones(prev => [...prev, ...nextRows])
-    setUseSpecialSchedule(false)
-    setSpecialEntrada('')
-    setSpecialTardanza('')
-    setSpecialSalida('')
+  const addSeccion = async () => {
+    const nextRows = buildSectionRows()
+    await appendAndSaveRows(nextRows)
   }
 
   const removeSeccion = (id) => setSecciones(prev => prev.filter(s => s.id !== id))
@@ -1275,10 +1302,21 @@ function Step2({ secciones, setSecciones }) {
                 placeholder="Ej: Pre-media, Comercio, Robotica"
                 value={newCourse}
                 onChange={e => setNewCourse(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    void addCourseToCatalog()
+                  }
+                }}
               />
             </div>
-            <button type="button" className="ss-btn-add" onClick={addCourseToCatalog}>
-              Agregar curso
+            <button
+              type="button"
+              className="ss-btn-add"
+              onClick={() => void addCourseToCatalog()}
+              disabled={savingCourses}
+            >
+              {savingCourses ? 'Guardando...' : 'Agregar y guardar curso'}
             </button>
           </div>
           <div className="ss-catalog-list">
@@ -1364,9 +1402,17 @@ function Step2({ secciones, setSecciones }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" className="ss-btn-add" onClick={addSeccion}>
+            <button type="button" className="ss-btn-add" onClick={() => void addSeccion()} disabled={savingCourses}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-              Crear secciones
+              {savingCourses ? 'Guardando...' : 'Crear y guardar secciones'}
+            </button>
+            <button
+              type="button"
+              className="ss-btn-primary"
+              onClick={() => void onSaveCourses()}
+              disabled={savingCourses || secciones.length === 0}
+            >
+              {savingCourses ? 'Guardando...' : 'Guardar cursos'}
             </button>
             <button type="button" className="ss-btn-skip" onClick={() => setSelectedSections([...SECCIONES_DEFAULT])}>
               Marcar A-J
@@ -1989,6 +2035,7 @@ export default function SchoolSetup() {
   const [courseStudents, setCourseStudents] = useState([])
   const [courseTeachers, setCourseTeachers] = useState([])
   const [courseSubjectLinks, setCourseSubjectLinks] = useState([])
+  const [savingCourses, setSavingCourses] = useState(false)
 
   // Step 3 — horarios
   const [horarios, setHorarios] = useState({
@@ -2306,68 +2353,25 @@ export default function SchoolSetup() {
     return true
   }
 
-  async function saveSections(currentSchoolId) {
-    const { data: existingSections, error: existingError } = await supabase
-      .from('grade_sections')
-      .select('id')
-      .eq('school_id', currentSchoolId)
-
-    if (existingError) throw existingError
-
-    const persistedIds = new Set((existingSections || []).map(section => section.id))
-    const currentPersistedIds = new Set(
-      secciones
-        .map(section => section.id)
-        .filter(id => typeof id === 'string' && persistedIds.has(id))
-    )
-
-    const idsToDelete = (existingSections || [])
-      .map(section => section.id)
-      .filter(id => !currentPersistedIds.has(id))
-
-    if (idsToDelete.length > 0) {
-      const { error: deleteError } = await supabase
-        .from('grade_sections')
-        .delete()
-        .in('id', idsToDelete)
-
-      if (deleteError) throw deleteError
+  function mapSavedSection(section) {
+    return {
+      id: section.id || `${section.grado}-${section.seccion}-${section.turno}`,
+      grado: section.grado,
+      seccion: section.seccion,
+      turno: section.turno,
+      special_schedule_enabled: Boolean(section.special_schedule_enabled),
+      hora_entrada_especial: section.hora_entrada_especial || '',
+      hora_salida_especial: section.hora_salida_especial || '',
+      hora_limite_tardanza_especial: section.hora_limite_tardanza_especial || '',
     }
+  }
 
-    for (const section of secciones) {
-      const fullPayload = {
-        school_id: currentSchoolId,
-        grado: section.grado,
-        seccion: section.seccion,
-        turno: section.turno,
-        special_schedule_enabled: Boolean(section.special_schedule_enabled),
-        hora_entrada_especial: section.special_schedule_enabled ? section.hora_entrada_especial || null : null,
-        hora_salida_especial: section.special_schedule_enabled ? section.hora_salida_especial || null : null,
-        hora_limite_tardanza_especial: section.special_schedule_enabled ? section.hora_limite_tardanza_especial || null : null,
-      }
-
-      const compatiblePayload = {
-        school_id: currentSchoolId,
-        grado: section.grado,
-        seccion: section.seccion,
-        turno: section.turno,
-      }
-
-      if (typeof section.id === 'string' && persistedIds.has(section.id)) {
-        await saveGradeSectionRow({
-          mode: 'update',
-          id: section.id,
-          fullPayload,
-          compatiblePayload,
-        })
-      } else {
-        await saveGradeSectionRow({
-          mode: 'insert',
-          fullPayload,
-          compatiblePayload,
-        })
-      }
-    }
+  async function saveSections(currentSchoolId, sectionsToSave = secciones) {
+    const normalizedSections = Array.isArray(sectionsToSave) ? sectionsToSave : secciones
+    const result = await saveSchoolSections(currentSchoolId, normalizedSections)
+    const savedSections = (result.sections || []).map(mapSavedSection)
+    setSecciones(savedSections)
+    return savedSections
   }
 
   async function saveSchedules(currentSchoolId) {
@@ -2429,30 +2433,6 @@ export default function SchoolSetup() {
       || message.includes('could not find')
       || message.includes('column')
     )
-  }
-
-  async function saveGradeSectionRow({ mode, id, fullPayload, compatiblePayload }) {
-    const run = payload => {
-      const query = mode === 'update'
-        ? supabase.from('grade_sections').update(payload).eq('id', id)
-        : supabase.from('grade_sections').insert(payload)
-
-      return query
-    }
-
-    const { error: fullError } = await run(fullPayload)
-
-    if (!fullError) return
-
-    if (!isSchemaCacheColumnError(fullError)) {
-      throw fullError
-    }
-
-    // Compatibilidad con bases antiguas: si aun no existen columnas de horario
-    // especial, el curso/seccion se guarda con los campos esenciales.
-    const { error: compatibleError } = await run(compatiblePayload)
-
-    if (compatibleError) throw compatibleError
   }
 
   async function saveSchoolMetadata(currentSchoolId) {
@@ -2521,6 +2501,25 @@ export default function SchoolSetup() {
       alert('Error: ' + error.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveCourses = async (sectionsOverride = secciones, options = {}) => {
+    setSavingCourses(true)
+    try {
+      if (!schoolId) {
+        throw new Error('No tienes un centro educativo asignado para configurar.')
+      }
+
+      await saveSections(schoolId, sectionsOverride)
+      await loadExistingSetup()
+      if (!options.silent) {
+        alert('Cursos guardados correctamente.')
+      }
+    } catch (error) {
+      alert('Error: ' + error.message)
+    } finally {
+      setSavingCourses(false)
     }
   }
 
@@ -2616,7 +2615,14 @@ export default function SchoolSetup() {
           {/* Card */}
           <div className="ss-card">
             {step === 1 && <Step1 data={schoolData} onChange={updateSchool} />}
-            {step === 2 && <Step2 secciones={secciones} setSecciones={setSecciones} />}
+            {step === 2 && (
+              <Step2
+                secciones={secciones}
+                setSecciones={setSecciones}
+                onSaveCourses={handleSaveCourses}
+                savingCourses={savingCourses}
+              />
+            )}
             {step === 3 && <Step3 horarios={horarios} setHorarios={setHorarios} />}
             {step === 4 && <Step4 calendario={calendario} setCalendario={setCalendario} />}
 

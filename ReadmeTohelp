@@ -260,12 +260,21 @@ pip install -r requirements.txt  # Instalar dependencias
 
 
 
-cd C:\proyectos\qhere\frontend
-npm run dev
-
+# backend
 cd C:\Users\duspo\OneDrive\Documentos\qhere\backend
 python run.py
 
 
-cd "C:\Users\duspo\OneDrive\Documentos\qhere\frontend"
-& "C:\Program Files\nodejs\npm.cmd" run dev -- --host localhost --port 5173 --force
+
+
+# frontend
+cd C:\Users\duspo\OneDrive\Documentos\qhere\frontend
+npm run dev:host
+
+
+
+cd C:\Users\duspo\OneDrive\Documentos\qhere
+.\tools\ngrok\ngrok.exe http 5173
+
+
+

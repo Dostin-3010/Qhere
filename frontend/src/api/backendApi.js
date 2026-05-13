@@ -124,6 +124,13 @@ export function assignDirectorToSchool(schoolId, directorProfileId) {
   })
 }
 
+export function saveSchoolSections(schoolId, sections) {
+  return apiRequest(`/api/management/schools/${schoolId}/sections`, {
+    method: 'PUT',
+    body: { sections },
+  })
+}
+
 export function updateSuperAdminUser(profileId, payload) {
   return apiRequest(`/api/management/super-admin/users/${profileId}`, {
     method: 'PATCH',

@@ -239,6 +239,7 @@ def _profiles_supports_school_id():
         supabase.table('profiles').select('school_id').limit(1).execute()
         _PROFILE_SCHOOL_ID_SUPPORTED = True
     except Exception:
+        _PROFILE_SCHOOL_ID_SUPPORTED = False
         return False
 
     return _PROFILE_SCHOOL_ID_SUPPORTED
@@ -382,6 +383,98 @@ def _require_super_admin():
     return auth_user, profile, None
 
 
+def _is_schema_cache_column_error(exc):
+    message = str(exc or '').lower()
+    return (
+        'pgrst204' in message
+        or 'schema cache' in message
+        or 'could not find' in message
+        or 'column' in message and 'does not exist' in message
+    )
+
+
+def _map_grade_section(row):
+    return {
+        'id': row.get('id'),
+        'school_id': row.get('school_id'),
+        'grado': row.get('grado'),
+        'seccion': row.get('seccion'),
+        'turno': row.get('turno'),
+        'special_schedule_enabled': bool(row.get('special_schedule_enabled')),
+        'hora_entrada_especial': row.get('hora_entrada_especial'),
+        'hora_salida_especial': row.get('hora_salida_especial'),
+        'hora_limite_tardanza_especial': row.get('hora_limite_tardanza_especial'),
+    }
+
+
+def _find_grade_section(school_id, grado, seccion, turno):
+    result = (
+        supabase.table('grade_sections')
+        .select('*')
+        .eq('school_id', school_id)
+        .eq('grado', grado)
+        .eq('seccion', seccion)
+        .eq('turno', turno)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    return rows[0] if rows else None
+
+
+def _save_grade_section_row(mode, section_id, full_payload, compatible_payload):
+    try:
+        query = supabase.table('grade_sections')
+        result = (
+            query.update(full_payload).eq('id', section_id).execute()
+            if mode == 'update'
+            else query.insert(full_payload).execute()
+        )
+        rows = result.data or []
+        return rows[0] if rows else _find_grade_section(
+            compatible_payload['school_id'],
+            compatible_payload['grado'],
+            compatible_payload['seccion'],
+            compatible_payload['turno'],
+        )
+    except Exception as exc:
+        if not _is_schema_cache_column_error(exc):
+            existing = _find_grade_section(
+                compatible_payload['school_id'],
+                compatible_payload['grado'],
+                compatible_payload['seccion'],
+                compatible_payload['turno'],
+            )
+            if mode == 'insert' and existing:
+                return existing
+            raise
+
+    try:
+        query = supabase.table('grade_sections')
+        result = (
+            query.update(compatible_payload).eq('id', section_id).execute()
+            if mode == 'update'
+            else query.insert(compatible_payload).execute()
+        )
+        rows = result.data or []
+        return rows[0] if rows else _find_grade_section(
+            compatible_payload['school_id'],
+            compatible_payload['grado'],
+            compatible_payload['seccion'],
+            compatible_payload['turno'],
+        )
+    except Exception:
+        existing = _find_grade_section(
+            compatible_payload['school_id'],
+            compatible_payload['grado'],
+            compatible_payload['seccion'],
+            compatible_payload['turno'],
+        )
+        if mode == 'insert' and existing:
+            return existing
+        raise
+
+
 def _generate_password(length=12):
     alphabet = string.ascii_letters + string.digits + '@#'
     while True:
@@ -463,9 +556,94 @@ def list_managed_users():
         return jsonify({'error': str(exc)}), 400
 
 
+@management_bp.route('/schools/<school_id>/sections', methods=['PUT'])
+def save_school_sections(school_id):
+    _, actor_profile, error_response = _require_director()
+    if error_response:
+        return error_response
+
+    school_id = _normalize_optional_uuid(school_id)
+    if not school_id:
+        return jsonify({'error': 'Centro invalido.'}), 400
+
+    if not _is_super_admin(actor_profile) and _normalize_optional_uuid(actor_profile.get('school_id')) != school_id:
+        return jsonify({'error': 'No tienes permiso para modificar este centro.'}), 403
+
+    if not _fetch_school(school_id):
+        return jsonify({'error': 'No se encontro el centro educativo.'}), 404
+
+    data = request.get_json() or {}
+    sections = data.get('sections') or []
+    if not isinstance(sections, list):
+        return jsonify({'error': 'La lista de cursos no es valida.'}), 400
+
+    normalized_sections = []
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+
+        grado = str(section.get('grado') or '').strip()
+        seccion = str(section.get('seccion') or '').strip()
+        turno = str(section.get('turno') or '').strip()
+        if not grado or not seccion or turno not in ['manana', 'tarde', 'noche']:
+            continue
+
+        normalized_sections.append({
+            'id': _normalize_optional_uuid(section.get('id')),
+            'grado': grado,
+            'seccion': seccion,
+            'turno': turno,
+            'special_schedule_enabled': bool(section.get('special_schedule_enabled')),
+            'hora_entrada_especial': section.get('hora_entrada_especial') or None,
+            'hora_salida_especial': section.get('hora_salida_especial') or None,
+            'hora_limite_tardanza_especial': section.get('hora_limite_tardanza_especial') or None,
+        })
+
+    try:
+        existing_result = (
+            supabase.table('grade_sections')
+            .select('id')
+            .eq('school_id', school_id)
+            .execute()
+        )
+        persisted_ids = {item.get('id') for item in existing_result.data or []}
+
+        saved_sections = []
+        for section in normalized_sections:
+            full_payload = {
+                'school_id': school_id,
+                'grado': section['grado'],
+                'seccion': section['seccion'],
+                'turno': section['turno'],
+                'special_schedule_enabled': section['special_schedule_enabled'],
+                'hora_entrada_especial': section['hora_entrada_especial'] if section['special_schedule_enabled'] else None,
+                'hora_salida_especial': section['hora_salida_especial'] if section['special_schedule_enabled'] else None,
+                'hora_limite_tardanza_especial': section['hora_limite_tardanza_especial'] if section['special_schedule_enabled'] else None,
+            }
+            compatible_payload = {
+                'school_id': school_id,
+                'grado': section['grado'],
+                'seccion': section['seccion'],
+                'turno': section['turno'],
+            }
+            mode = 'update' if section.get('id') in persisted_ids else 'insert'
+            saved = _save_grade_section_row(mode, section.get('id'), full_payload, compatible_payload)
+            if saved:
+                saved_sections.append(_map_grade_section(saved))
+
+        supabase.table('schools').update({'configurado': True}).eq('id', school_id).execute()
+
+        return jsonify({
+            'sections': saved_sections,
+            'message': 'Cursos guardados correctamente.',
+        }), 200
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
 def _send_director_request_email(payload):
     subject = f'Nueva solicitud de direccion - {payload["school_name"]}'
-    send_direct_email(
+    return send_direct_email(
         Config.DIRECTOR_APPROVAL_EMAIL,
         subject,
         [
@@ -570,18 +748,26 @@ def request_director_access():
             'school_id': school['id'],
         })).execute()
 
-        _send_director_request_email({
+        notification_delivery = _send_director_request_email({
             'school_name': school_name,
             'full_name': full_name,
             'email': email,
             'phone': phone,
         })
+        notification_warning = None
+        if notification_delivery and notification_delivery.get('channel') == 'failed':
+            notification_warning = (
+                'La solicitud fue creada, pero no se pudo registrar la alerta del panel. '
+                'Ejecuta la migracion de notification_queue para permitir el canal panel.'
+            )
 
         return jsonify({
-            'message': 'Solicitud enviada. El administrador absoluto recibira la notificacion por correo.',
+            'message': 'Solicitud enviada. El administrador absoluto podra revisarla desde el panel.',
             'school': school,
             'profile': profile_payload,
             'request_reopened': bool(existing_profile or existing_auth_user),
+            'notification_delivery': notification_delivery,
+            'notification_warning': notification_warning,
         }), 201
     except Exception as exc:
         if school and school.get('id'):
@@ -821,16 +1007,17 @@ def _school_usage_counts(school_id):
         'sections': 0,
     }
 
-    try:
-        counts['users'] = (
-            supabase.table('profiles')
-            .select('id', count='exact')
-            .eq('school_id', school_id)
-            .execute()
-            .count or 0
-        )
-    except Exception:
-        counts['users'] = 0
+    if _profiles_supports_school_id():
+        try:
+            counts['users'] = (
+                supabase.table('profiles')
+                .select('id', count='exact')
+                .eq('school_id', school_id)
+                .execute()
+                .count or 0
+            )
+        except Exception:
+            counts['users'] = 0
 
     try:
         counts['students'] = (
@@ -880,17 +1067,18 @@ def delete_school(school_id):
         }), 409
 
     try:
-        profiles_result = (
-            supabase.table('profiles')
-            .select('id, email, role')
-            .eq('school_id', school_id)
-            .execute()
-        )
-        for item in profiles_result.data or []:
-            if _normalize_email(item.get('email')) == Config.SUPER_ADMIN_EMAIL:
-                continue
-            if not _delete_auth_user(item.get('id')):
-                _delete_profile(item.get('id'))
+        if _profiles_supports_school_id():
+            profiles_result = (
+                supabase.table('profiles')
+                .select('id, email, role')
+                .eq('school_id', school_id)
+                .execute()
+            )
+            for item in profiles_result.data or []:
+                if _normalize_email(item.get('email')) == Config.SUPER_ADMIN_EMAIL:
+                    continue
+                if not _delete_auth_user(item.get('id')):
+                    _delete_profile(item.get('id'))
 
         supabase.table('students').delete().eq('school_id', school_id).execute()
         supabase.table('grade_sections').delete().eq('school_id', school_id).execute()

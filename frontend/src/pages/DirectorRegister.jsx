@@ -359,6 +359,9 @@ export default function DirectorRegister() {
       const result = await requestDirectorAccess({
         ...normalized,
       })
+      if (result?.notification_warning) {
+        toast(result.notification_warning)
+      }
       toast.success(result?.request_reopened ? 'Solicitud reenviada y puesta en revision.' : 'Solicitud enviada. Revisa tu correo cuando direccion apruebe el acceso.')
       navigate('/login', { replace: true })
     } catch (error) {

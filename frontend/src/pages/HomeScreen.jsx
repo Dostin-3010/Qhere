@@ -10,850 +10,1005 @@ const DASHBOARDS = {
   student: "/student/dashboard",
 };
 
-const FEATURES = [
-  ["Registro QR", "Entradas y salidas en segundos con una lectura visual mucho mas clara del estado diario."],
-  ["Excusas conectadas", "Adjuntos, comentarios docentes e historial visibles desde un flujo unico y ordenado."],
-  ["Paneles por rol", "Direccion, docentes, familias y estudiantes operan con experiencias consistentes."],
-  ["Lectura ejecutiva", "Indicadores, tablas y modulos con una presencia mas seria e institucional."],
+const NAV_ITEMS = [
+  ["Operacion", "operacion"],
+  ["Flujo", "flujo"],
+  ["Roles", "roles"],
 ];
 
-const STEPS = [
-  ["01", "El estudiante presenta su codigo", "Cada acceso QR identifica al alumno y habilita un registro preciso."],
-  ["02", "El docente valida la jornada", "La asistencia se clasifica al instante y queda trazada para revision."],
-  ["03", "La familia recibe seguimiento", "Excusas y novedades conviven en una experiencia mucho mas ordenada."],
+const HERO_STATS = [
+  ["92%", "asistencia registrada"],
+  ["18", "escaneos recientes"],
+  ["4", "excusas por revisar"],
+];
+
+const FEATURE_ROWS = [
+  ["QR en puerta", "Registro rapido de entrada y salida con hora, curso y responsable."],
+  ["Excusas trazables", "Adjuntos, estados y comentarios reunidos en el historial del estudiante."],
+  ["Panel directivo", "Indicadores simples para revisar asistencia, tardanzas y actividad del centro."],
+];
+
+const WORKFLOW = [
+  ["1", "Escanear", "El docente valida el codigo QR del estudiante al iniciar la jornada."],
+  ["2", "Registrar", "QHere clasifica asistencia, tardanza o ausencia y deja evidencia del evento."],
+  ["3", "Resolver", "Familias y administracion revisan excusas, alertas y seguimiento desde su panel."],
+];
+
+const ROLES = [
+  ["Direccion", "Supervisa el centro, usuarios, cursos y reportes operativos."],
+  ["Docentes", "Registran asistencia, revisan excusas y detectan incidencias diarias."],
+  ["Familias", "Consultan historial y envian justificativos con archivos adjuntos."],
+  ["Estudiantes", "Ven su estado de asistencia y sus excusas desde una vista simple."],
 ];
 
 const STYLES = `
-  .hp-root {
-    --ink: #111111;
-    --muted: #666666;
-    --navy: #111111;
-    --blue: #111111;
-    --blue-strong: #e82127;
-    --sky: #dededb;
-    --fog: #f5f5f4;
-    --paper: rgba(255,255,255,.92);
-    --paper-strong: rgba(255,255,255,.98);
+  .qh-home {
+    --ink: #141414;
+    --muted: #626262;
+    --line: #dfdfdc;
+    --paper: #ffffff;
+    --paper-soft: #f7f7f3;
+    --charcoal: #171717;
+    --red: #e82127;
+    --red-dark: #b9161c;
+    --green: #18745d;
+    --green-soft: #e8f5ef;
+    --amber: #9d6a1b;
+    --amber-soft: #fff3dc;
+    --blue: #28648f;
+    --blue-soft: #e8f2f7;
     min-height: 100vh;
     color: var(--ink);
-    font-family: "Sora", sans-serif;
     background:
-      linear-gradient(180deg, rgba(255,255,255,.96), rgba(245,245,244,.98)),
-      linear-gradient(rgba(17,17,17,.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(17,17,17,.03) 1px, transparent 1px),
-      #f5f5f4;
-    background-size: auto, 48px 48px, 48px 48px, auto;
+      linear-gradient(90deg, rgba(20, 20, 20, .035) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(20, 20, 20, .035) 1px, transparent 1px),
+      linear-gradient(180deg, #fbfbf8 0%, #f0f0eb 100%);
+    background-size: 44px 44px, 44px 44px, auto;
+    font-family: "Sora", sans-serif;
+    width: 100%;
+    max-width: 100vw;
     overflow-x: hidden;
   }
 
-  .hp-root * { box-sizing: border-box; }
-  .hp-shell { width: min(1220px, calc(100% - 32px)); margin: 0 auto; }
+  .qh-home * { box-sizing: border-box; }
 
-  .hp-nav {
+  .qh-home-shell {
+    width: min(1180px, calc(100% - 32px));
+    margin: 0 auto;
+  }
+
+  .qh-home-nav {
     position: sticky;
-    top: 18px;
-    z-index: 40;
+    top: 14px;
+    z-index: 20;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 16px;
-    padding: 14px 18px;
-    margin-top: 18px;
-    border-radius: 26px;
-    border: 1px solid rgba(16,40,71,.1);
-    background: rgba(255,255,255,.78);
-    backdrop-filter: blur(18px);
-    box-shadow: 0 24px 60px rgba(8,20,35,.08);
+    justify-content: space-between;
+    gap: 18px;
+    margin-top: 14px;
+    padding: 12px;
+    border: 1px solid rgba(20, 20, 20, .1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .9);
+    box-shadow: 0 18px 42px rgba(20, 20, 20, .08);
+    backdrop-filter: blur(16px);
   }
 
-  .hp-brand { display: flex; align-items: center; gap: 12px; }
-
-  .hp-mark {
-    width: 48px;
-    height: 48px;
-    border-radius: 17px;
-    display: grid;
-    place-items: center;
-    background: linear-gradient(135deg, var(--navy), var(--blue-strong));
-    color: #fff;
-    box-shadow: 0 18px 34px rgba(27,63,107,.22);
-  }
-
-  .hp-brand strong {
-    display: block;
-    font: 700 1.24rem "Fraunces", serif;
-    letter-spacing: -.03em;
-  }
-
-  .hp-brand span {
-    display: block;
-    margin-top: 2px;
-    font-size: .78rem;
-    color: var(--muted);
-  }
-
-  .hp-links {
+  .qh-home-links,
+  .qh-home-actions,
+  .qh-home-cta-actions {
     display: flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
   }
 
-  .hp-links a,
-  .hp-links button,
-  .hp-btn {
-    font: inherit;
+  .qh-home-link,
+  .qh-home-btn {
     border: 0;
+    font: inherit;
     text-decoration: none;
   }
 
-  .hp-links a,
-  .hp-links button {
-    padding: 10px 14px;
-    border-radius: 999px;
-    background: transparent;
+  .qh-home-link {
+    padding: 10px 12px;
     color: var(--muted);
-    font-weight: 700;
-    transition: transform .22s ease, color .22s ease;
-  }
-
-  .hp-links a:hover,
-  .hp-links button:hover {
-    transform: translateY(-2px);
-    color: var(--blue);
-  }
-
-  .hp-hero {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(460px, .94fr);
-    gap: 42px;
-    align-items: center;
-    padding: 96px 0 64px;
-  }
-
-  .hp-copy { animation: hp-rise .65s ease both; }
-
-  .hp-kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    border-radius: 999px;
-    background: rgba(255,255,255,.82);
-    border: 1px solid rgba(16,40,71,.1);
-    font-size: .78rem;
+    font-size: .88rem;
     font-weight: 800;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--blue);
+    border-radius: 8px;
+    transition: background .2s ease, color .2s ease;
   }
 
-  .hp-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 999px;
-    background: linear-gradient(135deg, #ffffff, #e82127);
+  .qh-home-link:hover {
+    color: var(--ink);
+    background: #f0f0ec;
   }
 
-  .hp-copy h1 {
-    margin: 22px 0 18px;
-    font: 700 clamp(3rem, 6vw, 5.3rem)/.95 "Fraunces", serif;
-    letter-spacing: -.06em;
-  }
-
-  .hp-copy h1 em {
-    font-style: normal;
-    color: var(--blue);
-  }
-
-  .hp-copy p {
-    max-width: 640px;
-    color: var(--muted);
-    font-size: 1.03rem;
-    line-height: 1.86;
-  }
-
-  .hp-actions,
-  .hp-cta-actions {
-    display: flex;
-    gap: 14px;
-    flex-wrap: wrap;
-    margin-top: 30px;
-  }
-
-  .hp-btn {
+  .qh-home-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    padding: 14px 22px;
-    border-radius: 999px;
-    font-weight: 800;
-    transition: transform .22s ease, box-shadow .22s ease, background .22s ease;
+    gap: 9px;
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 8px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
   }
 
-  .hp-btn:hover { transform: translateY(-2px); }
+  .qh-home-btn:hover {
+    transform: translateY(-1px);
+  }
 
-  .hp-btn-primary {
-    background: linear-gradient(135deg, var(--navy), var(--blue-strong));
+  .qh-home-btn.primary {
     color: #fff;
-    box-shadow: 0 18px 34px rgba(27,63,107,.2);
+    background: var(--charcoal);
+    box-shadow: inset 0 -3px 0 var(--red), 0 14px 28px rgba(20, 20, 20, .16);
   }
 
-  .hp-btn-secondary {
-    background: rgba(255,255,255,.82);
+  .qh-home-btn.secondary {
     color: var(--ink);
-    border: 1px solid rgba(16,40,71,.12);
+    background: #fff;
+    border: 1px solid var(--line);
   }
 
-  .hp-btn-danger {
-    color: #8f3f3f;
-    background: rgba(179,71,71,.08);
-    border: 1px solid rgba(179,71,71,.16);
+  .qh-home-btn.danger {
+    color: #8d171b;
+    background: #fff1f1;
+    border: 1px solid #ffd0d0;
   }
 
-  .hp-metrics {
+  .qh-home-hero {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
-    margin-top: 30px;
-  }
-
-  .hp-command-strip {
-    display: flex;
+    grid-template-columns: minmax(0, .9fr) minmax(430px, 1fr);
+    gap: 44px;
     align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 18px;
-    padding: 10px;
-    border-radius: 22px;
-    border: 1px solid rgba(17,17,17,.08);
-    background: rgba(255,255,255,.72);
-    box-shadow: 0 16px 36px rgba(17,17,17,.06);
-    backdrop-filter: blur(18px);
+    min-height: calc(100vh - 88px);
+    padding: 48px 0 54px;
   }
 
-  .hp-command-chip {
+  .qh-home-kicker {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 9px 12px;
-    border-radius: 999px;
-    background: #fff;
-    border: 1px solid rgba(17,17,17,.08);
-    color: #111;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .72);
+    color: var(--red-dark);
     font-size: .78rem;
-    font-weight: 800;
-  }
-
-  .hp-command-chip::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 999px;
-    background: #e82127;
-    box-shadow: 0 0 0 5px rgba(232,33,39,.1);
-  }
-
-  .hp-metric,
-  .hp-feature,
-  .hp-step,
-  .hp-role,
-  .hp-cta {
-    background: var(--paper);
-    border: 1px solid rgba(16,40,71,.08);
-    box-shadow: 0 24px 56px rgba(8,20,35,.08);
-    backdrop-filter: blur(18px);
-  }
-
-  .hp-metric {
-    padding: 18px;
-    border-radius: 22px;
-  }
-
-  .hp-metric strong {
-    display: block;
-    font: 700 clamp(1.8rem, 3vw, 2.35rem) "Fraunces", serif;
-  }
-
-  .hp-metric span {
-    display: block;
-    margin-top: 6px;
-    font-size: .9rem;
-    color: var(--muted);
-    line-height: 1.6;
-  }
-
-  .hp-stage {
-    position: relative;
-    min-height: 620px;
-    animation: hp-rise .8s ease both;
-  }
-
-  .hp-phone {
-    position: absolute;
-    z-index: 8;
-    top: 18px;
-    right: 44px;
-    width: 224px;
-    padding: 10px;
-    border-radius: 34px;
-    background: #0b0b0c;
-    border: 1px solid rgba(255,255,255,.18);
-    box-shadow: 0 34px 78px rgba(0,0,0,.28);
-    animation: hp-phone-float 5.4s ease-in-out infinite;
-  }
-
-  .hp-phone::before {
-    content: "";
-    position: absolute;
-    top: 9px;
-    left: 50%;
-    width: 74px;
-    height: 20px;
-    border-radius: 0 0 14px 14px;
-    background: #0b0b0c;
-    transform: translateX(-50%);
-    z-index: 3;
-  }
-
-  .hp-phone-screen {
-    position: relative;
-    min-height: 430px;
-    overflow: hidden;
-    border-radius: 26px;
-    background:
-      linear-gradient(160deg, rgba(232,33,39,.12), transparent 30%),
-      linear-gradient(180deg, #fafafa 0%, #f0f0ef 100%);
-    border: 1px solid rgba(255,255,255,.12);
-  }
-
-  .hp-phone-top {
-    padding: 34px 18px 16px;
-    background: #111;
-    color: #fff;
-  }
-
-  .hp-phone-eyebrow {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: .62rem;
     font-weight: 900;
-    letter-spacing: .14em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,.62);
-  }
-
-  .hp-phone-live {
-    width: 8px;
-    height: 8px;
-    border-radius: 999px;
-    background: #e82127;
-    box-shadow: 0 0 0 5px rgba(232,33,39,.18);
-  }
-
-  .hp-phone-title {
-    margin-top: 20px;
-    font-size: 1.9rem;
-    font-weight: 900;
-    letter-spacing: -.07em;
-    line-height: .95;
-  }
-
-  .hp-phone-title span {
-    color: #e82127;
-  }
-
-  .hp-phone-card {
-    margin: 12px;
-    padding: 14px;
-    border-radius: 18px;
-    background: #fff;
-    border: 1px solid rgba(17,17,17,.08);
-    box-shadow: 0 16px 30px rgba(17,17,17,.08);
-  }
-
-  .hp-phone-card strong {
-    display: block;
-    font-size: .74rem;
     letter-spacing: .08em;
     text-transform: uppercase;
   }
 
-  .hp-phone-card p {
-    margin: 8px 0 0;
-    color: #666;
-    font-size: .72rem;
-    line-height: 1.55;
-  }
-
-  .hp-phone-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin: 10px 12px 0;
-    padding: 12px;
-    border-radius: 16px;
-    background: rgba(255,255,255,.82);
-    border: 1px solid rgba(17,17,17,.08);
-  }
-
-  .hp-phone-row span {
+  .qh-home-kicker img {
+    width: 22px;
+    height: 22px;
     display: block;
-    color: #71717a;
-    font-size: .66rem;
-    margin-top: 3px;
   }
 
-  .hp-phone-status {
-    flex: 0 0 auto;
-    width: 34px;
-    height: 34px;
-    border-radius: 12px;
+  .qh-home-title {
+    max-width: 780px;
+    margin: 20px 0 18px;
+    font-family: "Fraunces", serif;
+    font-size: clamp(3rem, 7vw, 6.15rem);
+    font-weight: 800;
+    line-height: .9;
+    letter-spacing: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .qh-home-title span {
+    color: var(--red);
+  }
+
+  .qh-home-copy {
+    max-width: 640px;
+    color: var(--muted);
+    font-size: 1.04rem;
+    line-height: 1.78;
+    overflow-wrap: anywhere;
+  }
+
+  .qh-home-hero > *,
+  .qh-home-section-head > *,
+  .qh-home-cta > * {
+    min-width: 0;
+  }
+
+  .qh-home-proof {
     display: grid;
-    place-items: center;
-    background: #111;
-    color: #fff;
-    font-size: .72rem;
-    font-weight: 900;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 30px;
   }
 
-  .hp-phone-status.red {
-    background: #e82127;
+  .qh-home-stat {
+    min-height: 98px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .78);
   }
 
-  .hp-aura {
-    position: absolute;
-    inset: 0;
-    border-radius: 38px;
-    background:
-      radial-gradient(circle at top right, rgba(184,212,232,.2), transparent 26%),
-      linear-gradient(160deg, rgba(8,20,35,.98), rgba(16,40,71,.94) 56%, rgba(27,63,107,.92));
-    border: 1px solid rgba(184,212,232,.16);
-    box-shadow: 0 34px 82px rgba(8,20,35,.2);
+  .qh-home-stat strong {
+    display: block;
+    font-family: "Fraunces", serif;
+    font-size: clamp(1.8rem, 3vw, 2.4rem);
+    line-height: 1;
   }
 
-  .hp-card {
-    position: absolute;
-    border-radius: 28px;
-    border: 1px solid rgba(16,40,71,.1);
-    box-shadow: 0 26px 58px rgba(8,20,35,.14);
+  .qh-home-stat span {
+    display: block;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: .82rem;
+    line-height: 1.45;
+  }
+
+  .qh-home-showcase {
+    position: relative;
+    min-width: 0;
+    padding-top: 42px;
+  }
+
+  .qh-home-product {
+    position: relative;
+    border: 1px solid #2f2f2f;
+    border-radius: 8px;
+    background: var(--charcoal);
+    box-shadow: 0 30px 80px rgba(20, 20, 20, .26);
     overflow: hidden;
   }
 
-  .hp-card-main {
-    inset: 34px 34px 132px 34px;
-    padding: 28px;
-    background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(247,251,255,.9));
-  }
-
-  .hp-card-side,
-  .hp-card-foot {
-    width: 236px;
-    padding: 22px;
-    color: #fff;
-    border-color: rgba(184,212,232,.16);
-    background: linear-gradient(180deg, rgba(14,32,57,.92), rgba(27,63,107,.9));
-    backdrop-filter: blur(16px);
-  }
-
-  .hp-card-side {
-    right: 14px;
-    top: 52px;
-    animation: hp-float 4s ease-in-out infinite;
-  }
-
-  .hp-card-foot {
-    left: 18px;
-    bottom: 20px;
-    animation: hp-float 4.8s ease-in-out infinite .4s;
-  }
-
-  .hp-tag {
-    display: inline-flex;
+  .qh-home-product-top {
+    display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    color: #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, .12);
+  }
+
+  .qh-home-window-dots {
+    display: flex;
+    gap: 7px;
+  }
+
+  .qh-home-window-dots span {
+    width: 9px;
+    height: 9px;
     border-radius: 999px;
-    background: rgba(27,63,107,.08);
-    color: var(--blue);
-    font-size: .75rem;
-    font-weight: 800;
+    background: #fff;
+    opacity: .34;
+  }
+
+  .qh-home-product-label {
+    color: rgba(255, 255, 255, .72);
+    font-size: .76rem;
+    font-weight: 900;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .qh-home-product-body {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr);
+    min-height: 520px;
+    background: #f6f6f2;
+  }
+
+  .qh-home-product-side {
+    padding: 18px 12px;
+    color: #fff;
+    background: #171717;
+  }
+
+  .qh-home-side-title {
+    padding: 0 8px 14px;
+    color: rgba(255, 255, 255, .58);
+    font-size: .72rem;
+    font-weight: 900;
     letter-spacing: .12em;
     text-transform: uppercase;
   }
 
-  .hp-card-side .hp-tag,
-  .hp-card-foot .hp-tag {
-    background: rgba(255,255,255,.12);
-    color: rgba(255,255,255,.88);
-  }
-
-  .hp-card h2 {
-    margin-top: 18px;
-    font: 700 2.15rem/1 "Fraunces", serif;
-    letter-spacing: -.04em;
-  }
-
-  .hp-card h3 {
-    margin-top: 16px;
-    font-size: 1.05rem;
-    font-weight: 800;
-    letter-spacing: -.02em;
-  }
-
-  .hp-panels {
-    display: grid;
-    grid-template-columns: 1.08fr .92fr;
-    gap: 16px;
-    margin-top: 20px;
-  }
-
-  .hp-panel {
-    padding: 18px;
-    border-radius: 22px;
-    border: 1px solid rgba(16,40,71,.08);
-    background: rgba(238,246,252,.82);
-  }
-
-  .hp-panel.dark {
-    background: linear-gradient(135deg, rgba(16,40,71,.98), rgba(42,90,148,.94));
-    color: #fff;
-  }
-
-  .hp-panel strong {
-    display: block;
-    font-weight: 800;
-    margin-bottom: 8px;
-  }
-
-  .hp-panel p,
-  .hp-card p {
-    font-size: .92rem;
-    line-height: 1.72;
-    color: inherit;
-    opacity: .88;
-  }
-
-  .hp-progress {
-    height: 10px;
-    border-radius: 999px;
-    overflow: hidden;
-    background: rgba(255,255,255,.2);
-    margin-top: 12px;
-  }
-
-  .hp-progress span {
-    display: block;
-    width: 88%;
-    height: 100%;
-    background: linear-gradient(135deg, #cce4fb, #ffffff);
-  }
-
-  .hp-list {
-    display: grid;
-    gap: 12px;
-    margin-top: 18px;
-  }
-
-  .hp-item {
+  .qh-home-side-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 13px 14px;
-    border-radius: 18px;
-    background: rgba(255,255,255,.92);
-    border: 1px solid rgba(16,40,71,.08);
+    gap: 9px;
+    min-height: 40px;
+    margin-bottom: 6px;
+    padding: 0 8px;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, .76);
+    font-size: .82rem;
+    font-weight: 800;
   }
 
-  .hp-item strong {
-    display: block;
-    font-size: .95rem;
+  .qh-home-side-item.active {
+    color: #fff;
+    background: rgba(255, 255, 255, .1);
   }
 
-  .hp-item span {
-    display: block;
-    margin-top: 3px;
-    font-size: .84rem;
-    color: var(--muted);
-  }
-
-  .hp-pill {
-    margin-left: auto;
-    padding: 6px 10px;
+  .qh-home-side-dot {
+    width: 8px;
+    height: 8px;
     border-radius: 999px;
-    font-size: .76rem;
+    background: var(--red);
+  }
+
+  .qh-home-board {
+    padding: 18px;
+  }
+
+  .qh-home-board-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 16px;
+  }
+
+  .qh-home-board h2,
+  .qh-home-section h2,
+  .qh-home-cta h2 {
+    font-family: "Fraunces", serif;
     font-weight: 800;
+    letter-spacing: 0;
   }
 
-  .hp-pill.teal {
-    background: rgba(138,226,196,.2);
-    color: #1e6750;
+  .qh-home-board h2 {
+    font-size: 2.2rem;
+    line-height: 1;
   }
 
-  .hp-pill.amber {
-    background: rgba(255,223,176,.26);
-    color: #8f6224;
-  }
-
-  .hp-note {
-    margin-top: 14px;
-    font-size: .9rem;
+  .qh-home-board p {
+    margin-top: 7px;
     color: var(--muted);
-    line-height: 1.74;
+    font-size: .88rem;
   }
 
-  .hp-section { padding-top: 42px; }
-  .hp-head { max-width: 760px; margin-bottom: 24px; }
-
-  .hp-label {
-    font-size: .78rem;
-    font-weight: 800;
-    letter-spacing: .14em;
-    text-transform: uppercase;
-    color: var(--blue);
+  .qh-home-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    color: var(--green);
+    background: var(--green-soft);
+    font-size: .74rem;
+    font-weight: 900;
+    white-space: nowrap;
   }
 
-  .hp-head h2 {
-    margin-top: 12px;
-    font: 700 clamp(2.1rem, 4vw, 3.35rem)/1.04 "Fraunces", serif;
-    letter-spacing: -.04em;
+  .qh-home-live::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--green);
   }
 
-  .hp-head p {
-    margin-top: 12px;
-    color: var(--muted);
-    line-height: 1.84;
-  }
-
-  .hp-grid,
-  .hp-roles,
-  .hp-steps {
+  .qh-home-grid {
     display: grid;
-    gap: 16px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
   }
 
-  .hp-grid,
-  .hp-roles {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .qh-home-mini {
+    min-height: 118px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
   }
 
-  .hp-steps {
+  .qh-home-mini span {
+    color: var(--muted);
+    font-size: .75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .qh-home-mini strong {
+    display: block;
+    margin-top: 14px;
+    font-size: 1.6rem;
+  }
+
+  .qh-home-scan {
+    display: grid;
+    grid-template-columns: 148px minmax(0, 1fr);
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .qh-home-qr {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 7px;
+    padding: 14px;
+    aspect-ratio: 1;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .qh-home-qr span {
+    border-radius: 4px;
+    background: var(--charcoal);
+  }
+
+  .qh-home-qr span:nth-child(3n),
+  .qh-home-qr span:nth-child(5),
+  .qh-home-qr span:nth-child(14) {
+    background: var(--red);
+  }
+
+  .qh-home-activity {
+    display: grid;
+    gap: 10px;
+  }
+
+  .qh-home-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .qh-home-row strong {
+    display: block;
+    font-size: .9rem;
+  }
+
+  .qh-home-row span {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: .78rem;
+  }
+
+  .qh-home-badge {
+    padding: 7px 9px;
+    border-radius: 8px;
+    font-size: .72rem;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .qh-home-badge.green {
+    color: var(--green);
+    background: var(--green-soft);
+  }
+
+  .qh-home-badge.amber {
+    color: var(--amber);
+    background: var(--amber-soft);
+  }
+
+  .qh-home-phone {
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    right: -18px;
+    width: 196px;
+    padding: 9px;
+    border: 1px solid rgba(255, 255, 255, .16);
+    border-radius: 30px;
+    background: #0d0d0e;
+    box-shadow: 0 28px 68px rgba(20, 20, 20, .34);
+    animation: qh-home-phone-float 5.2s ease-in-out infinite;
+  }
+
+  .qh-home-phone::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    z-index: 2;
+    width: 70px;
+    height: 18px;
+    border-radius: 0 0 14px 14px;
+    background: #0d0d0e;
+    transform: translateX(-50%);
+  }
+
+  .qh-home-phone-screen {
+    min-height: 374px;
+    overflow: hidden;
+    border-radius: 23px;
+    background:
+      linear-gradient(160deg, rgba(232, 33, 39, .15), transparent 34%),
+      linear-gradient(180deg, #fafafa 0%, #efefeb 100%);
+  }
+
+  .qh-home-phone-top {
+    padding: 32px 16px 15px;
+    color: #fff;
+    background: var(--charcoal);
+  }
+
+  .qh-home-phone-kicker {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: rgba(255, 255, 255, .62);
+    font-size: .58rem;
+    font-weight: 900;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .qh-home-phone-live {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--red);
+    box-shadow: 0 0 0 5px rgba(232, 33, 39, .18);
+  }
+
+  .qh-home-phone-title {
+    margin-top: 18px;
+    font-size: 1.62rem;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .qh-home-phone-title span {
+    display: block;
+    color: var(--red);
+  }
+
+  .qh-home-phone-card,
+  .qh-home-phone-row {
+    margin: 10px;
+    border: 1px solid rgba(20, 20, 20, .08);
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 10px 24px rgba(20, 20, 20, .08);
+  }
+
+  .qh-home-phone-card {
+    padding: 12px;
+  }
+
+  .qh-home-phone-card strong,
+  .qh-home-phone-row strong {
+    display: block;
+    font-size: .72rem;
+  }
+
+  .qh-home-phone-card p,
+  .qh-home-phone-row span {
+    display: block;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: .66rem;
+    line-height: 1.45;
+  }
+
+  .qh-home-phone-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .qh-home-phone-chip {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    color: #fff;
+    background: var(--charcoal);
+    font-size: .7rem;
+    font-weight: 900;
+  }
+
+  .qh-home-phone-chip.red {
+    background: var(--red);
+  }
+
+  .qh-home-section {
+    padding: 54px 0;
+    border-top: 1px solid rgba(20, 20, 20, .08);
+  }
+
+  .qh-home-section-head {
+    display: grid;
+    grid-template-columns: minmax(0, .72fr) minmax(280px, .5fr);
+    gap: 30px;
+    align-items: end;
+    margin-bottom: 20px;
+  }
+
+  .qh-home-label {
+    color: var(--red-dark);
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .qh-home-section h2,
+  .qh-home-cta h2 {
+    margin-top: 10px;
+    font-size: clamp(2rem, 4.8vw, 3.6rem);
+    line-height: 1;
+  }
+
+  .qh-home-section-head p {
+    color: var(--muted);
+    line-height: 1.75;
+  }
+
+  .qh-home-feature-list,
+  .qh-home-workflow,
+  .qh-home-roles {
+    display: grid;
+    gap: 10px;
+  }
+
+  .qh-home-feature-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .hp-feature,
-  .hp-role,
-  .hp-step {
-    padding: 24px;
-    border-radius: 26px;
-    transition: transform .22s ease, box-shadow .22s ease;
+  .qh-home-workflow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .hp-feature:hover,
-  .hp-role:hover,
-  .hp-step:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 28px 62px rgba(8,20,35,.14);
+  .qh-home-roles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .hp-feature h3,
-  .hp-role h3,
-  .hp-step h3,
-  .hp-cta h3 {
-    margin-top: 16px;
-    font-size: 1.04rem;
-    font-weight: 800;
-    letter-spacing: -.02em;
+  .qh-home-feature,
+  .qh-home-step,
+  .qh-home-role {
+    min-height: 188px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .78);
+    transition: transform .2s ease, box-shadow .2s ease;
   }
 
-  .hp-feature p,
-  .hp-role p,
-  .hp-step p,
-  .hp-cta p {
-    margin-top: 12px;
-    color: var(--muted);
-    line-height: 1.74;
-    font-size: .94rem;
+  .qh-home-feature:hover,
+  .qh-home-step:hover,
+  .qh-home-role:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 42px rgba(20, 20, 20, .08);
   }
 
-  .hp-icon,
-  .hp-step-no {
-    width: 50px;
-    height: 50px;
-    border-radius: 16px;
+  .qh-home-icon,
+  .qh-home-step-no {
+    width: 42px;
+    height: 42px;
     display: grid;
     place-items: center;
+    border-radius: 8px;
+    font-weight: 900;
   }
 
-  .hp-icon {
-    background: linear-gradient(135deg, rgba(184,212,232,.4), rgba(42,90,148,.12));
+  .qh-home-icon {
     color: var(--blue);
+    background: var(--blue-soft);
   }
 
-  .hp-step-no {
-    background: linear-gradient(135deg, var(--navy), var(--blue-strong));
+  .qh-home-step-no {
     color: #fff;
-    font-weight: 800;
+    background: var(--charcoal);
+    box-shadow: inset 0 -3px 0 var(--red);
   }
 
-  .hp-role.amber {
-    background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(241,247,252,.84));
+  .qh-home-feature h3,
+  .qh-home-step h3,
+  .qh-home-role h3 {
+    margin-top: 18px;
+    font-size: 1.02rem;
+    font-weight: 900;
   }
 
-  .hp-role.teal {
-    background: linear-gradient(180deg, rgba(244,250,255,.95), rgba(226,237,248,.84));
-  }
-
-  .hp-role.ivory {
-    background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(246,250,255,.86));
-  }
-
-  .hp-role.slate {
-    background: linear-gradient(180deg, rgba(244,248,253,.95), rgba(226,235,245,.84));
-  }
-
-  .hp-cta-wrap { padding: 58px 0 86px; }
-
-  .hp-cta {
-    position: relative;
-    overflow: hidden;
-    padding: 36px;
-    border-radius: 30px;
-    background: linear-gradient(135deg, rgba(8,20,35,.98), rgba(27,63,107,.94));
-    color: #fff;
-  }
-
-  .hp-cta::before {
-    content: "";
-    position: absolute;
-    width: 240px;
-    height: 240px;
-    top: -90px;
-    right: -18px;
-    border-radius: 999px;
-    background: rgba(255,255,255,.08);
-  }
-
-  .hp-cta p {
-    max-width: 620px;
-    color: rgba(255,255,255,.82);
-  }
-
-  .hp-footer {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-    padding: 0 0 34px;
+  .qh-home-feature p,
+  .qh-home-step p,
+  .qh-home-role p {
+    margin-top: 10px;
     color: var(--muted);
     font-size: .92rem;
+    line-height: 1.65;
   }
 
-  .hp-footer strong { color: var(--ink); }
-  .hp-footer-brand { display: inline-flex; align-items: center; gap: 8px; }
+  .qh-home-role:nth-child(2) .qh-home-icon { color: var(--green); background: var(--green-soft); }
+  .qh-home-role:nth-child(3) .qh-home-icon { color: var(--amber); background: var(--amber-soft); }
+  .qh-home-role:nth-child(4) .qh-home-icon { color: var(--red-dark); background: #fff1f1; }
 
-  @keyframes hp-rise {
-    from { opacity: 0; transform: translateY(24px); }
-    to { opacity: 1; transform: translateY(0); }
+  .qh-home-cta-wrap {
+    padding: 22px 0 58px;
   }
 
-  @keyframes hp-float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
+  .qh-home-cta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 24px;
+    align-items: center;
+    padding: 28px;
+    border-radius: 8px;
+    color: #fff;
+    background:
+      linear-gradient(90deg, rgba(232, 33, 39, .16), transparent 46%),
+      var(--charcoal);
+    box-shadow: 0 26px 62px rgba(20, 20, 20, .2);
   }
 
-  @keyframes hp-phone-float {
+  .qh-home-cta p {
+    max-width: 680px;
+    margin-top: 12px;
+    color: rgba(255, 255, 255, .72);
+    line-height: 1.7;
+  }
+
+  .qh-home-cta .qh-home-label {
+    color: rgba(255, 255, 255, .68);
+  }
+
+  .qh-home-cta .qh-home-btn.secondary {
+    color: #fff;
+    background: rgba(255, 255, 255, .1);
+    border-color: rgba(255, 255, 255, .18);
+  }
+
+  .qh-home-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 0 0 28px;
+    color: var(--muted);
+    font-size: .86rem;
+  }
+
+  @keyframes qh-home-phone-float {
     0%, 100% { transform: translateY(0) rotate(2deg); }
     50% { transform: translateY(-12px) rotate(-1deg); }
   }
 
   @media (max-width: 1080px) {
-    .hp-hero,
-    .hp-grid,
-    .hp-roles,
-    .hp-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .qh-home-hero,
+    .qh-home-section-head,
+    .qh-home-cta {
+      grid-template-columns: 1fr;
+    }
+
+    .qh-home-product {
+      max-width: 820px;
+    }
+
+    .qh-home-phone {
+      right: 18px;
+    }
+
+    .qh-home-feature-list,
+    .qh-home-workflow,
+    .qh-home-roles {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
-  @media (max-width: 860px) {
-    .hp-shell { width: min(100%, calc(100% - 24px)); }
-    .hp-nav { position: static; flex-direction: column; align-items: stretch; }
-    .hp-links { justify-content: center; }
-    .hp-hero,
-    .hp-grid,
-    .hp-roles,
-    .hp-steps,
-    .hp-panels,
-    .hp-metrics { grid-template-columns: 1fr; }
-    .hp-stage { min-height: 740px; }
-    .hp-card-main { inset: 24px 18px 220px 18px; }
-    .hp-phone { right: 20px; top: 20px; width: 204px; }
-    .hp-phone-screen { min-height: 390px; }
-    .hp-card-side { top: auto; bottom: 102px; right: 16px; }
-    .hp-card-foot { left: 16px; bottom: 18px; }
-  }
+  @media (max-width: 760px) {
+    .qh-home-shell {
+      width: min(100%, calc(100% - 18px));
+    }
 
-  @media (max-width: 560px) {
-    .hp-shell { width: min(100%, calc(100% - 16px)); }
-    .hp-copy h1 { font-size: clamp(2.5rem, 12vw, 3.7rem); }
-    .hp-stage { min-height: 810px; }
-    .hp-card-main { inset: 14px 10px 270px 10px; padding: 22px 18px; }
-    .hp-phone {
+    .qh-home-nav {
+      position: static;
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .qh-home-links,
+    .qh-home-actions,
+    .qh-home-cta-actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .qh-home-link,
+    .qh-home-btn {
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .qh-home-hero {
+      min-height: auto;
+      padding-top: 36px;
+    }
+
+    .qh-home-title {
+      width: 100%;
+      max-width: min(100%, 340px);
+      font-size: clamp(2rem, 9.2vw, 2.65rem);
+      line-height: 1.06;
+      white-space: normal;
+      word-break: normal;
+    }
+
+    .qh-home-title span {
+      display: block;
+    }
+
+    .qh-home-copy,
+    .qh-home-kicker,
+    .qh-home-actions,
+    .qh-home-proof,
+    .qh-home-showcase,
+    .qh-home-product {
+      width: 100%;
+      max-width: calc(100vw - 18px);
+    }
+
+    .qh-home-copy {
+      max-width: min(100%, 340px);
+    }
+
+    .qh-home-proof,
+    .qh-home-grid,
+    .qh-home-scan,
+    .qh-home-feature-list,
+    .qh-home-workflow,
+    .qh-home-roles {
+      grid-template-columns: 1fr;
+    }
+
+    .qh-home-product-body {
+      grid-template-columns: 1fr;
+    }
+
+    .qh-home-showcase {
+      display: flex;
+      flex-direction: column;
+      padding-top: 0;
+    }
+
+    .qh-home-phone {
       position: relative;
+      order: -1;
       top: auto;
       right: auto;
-      width: min(238px, calc(100% - 50px));
-      margin: 0 auto 18px;
+      width: min(232px, 78vw);
+      margin: 0 auto -18px;
     }
-    .hp-card-side,
-    .hp-card-foot {
-      width: calc(100% - 20px);
-      left: 10px;
-      right: 10px;
+
+    .qh-home-product-side {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 12px;
     }
-    .hp-card-side { bottom: 136px; }
-    .hp-card-foot { bottom: 10px; }
-    .hp-feature,
-    .hp-role,
-    .hp-step,
-    .hp-cta { padding: 22px; }
+
+    .qh-home-side-title {
+      display: none;
+    }
+
+    .qh-home-side-item {
+      flex: 0 0 auto;
+      margin: 0;
+      white-space: nowrap;
+    }
+
+    .qh-home-board {
+      padding: 14px;
+    }
+
+    .qh-home-board-head {
+      display: grid;
+    }
+
+    .qh-home-live {
+      justify-self: start;
+    }
+
+    .qh-home-feature,
+    .qh-home-step,
+    .qh-home-role {
+      min-height: auto;
+    }
+  }
+
+  @media (max-width: 460px) {
+    .qh-home {
+      background-size: 34px 34px, 34px 34px, auto;
+    }
+
+    .qh-home-phone-screen {
+      min-height: 348px;
+    }
+
+    .qh-home-board h2 {
+      font-size: 1.75rem;
+    }
+
+    .qh-home-product-top {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .qh-home-row {
+      grid-template-columns: 1fr;
+    }
+
+    .qh-home-badge {
+      justify-self: start;
+    }
+
+    .qh-home-cta {
+      padding: 20px;
+    }
   }
 `;
 
-function IconLogo() {
+function Icon({ type = "qr" }) {
+  const paths = {
+    qr: (
+      <>
+        <rect x="4" y="4" width="6" height="6" rx="1.2" />
+        <rect x="14" y="4" width="6" height="6" rx="1.2" />
+        <rect x="4" y="14" width="6" height="6" rx="1.2" />
+        <path d="M14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z" />
+      </>
+    ),
+    chart: (
+      <>
+        <path d="M5 19V9" />
+        <path d="M12 19V5" />
+        <path d="M19 19v-7" />
+      </>
+    ),
+    file: (
+      <>
+        <path d="M7 4h7l4 4v12H7z" />
+        <path d="M14 4v5h5" />
+        <path d="M9.5 13h5M9.5 16h4" />
+      </>
+    ),
+    user: (
+      <>
+        <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
+        <path d="M5 20a7 7 0 0 1 14 0" />
+      </>
+    ),
+    arrow: <path d="M5 12h13M13 6l6 6-6 6" />,
+  };
+
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="3" width="7" height="7" rx="1.4" fill="currentColor" />
-      <rect x="14" y="3" width="7" height="7" rx="1.4" fill="currentColor" />
-      <rect x="3" y="14" width="7" height="7" rx="1.4" fill="currentColor" />
-      <rect x="14" y="14" width="3" height="3" rx="0.7" fill="currentColor" />
-      <rect x="18" y="14" width="3" height="3" rx="0.7" fill="currentColor" />
-      <rect x="14" y="18" width="3" height="3" rx="0.7" fill="currentColor" />
-      <rect x="18" y="18" width="3" height="3" rx="0.7" fill="currentColor" />
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <g
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill={type === "qr" ? "currentColor" : "none"}
+      >
+        {paths[type] ?? paths.qr}
+      </g>
     </svg>
   );
 }
 
-function IconArrow() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconQr() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="3" width="7" height="7" rx="1.4" stroke="currentColor" strokeWidth="2" />
-      <rect x="14" y="3" width="7" height="7" rx="1.4" stroke="currentColor" strokeWidth="2" />
-      <rect x="3" y="14" width="7" height="7" rx="1.4" stroke="currentColor" strokeWidth="2" />
-      <path d="M14 14h3v3M17 14h3M14 17h6M17 20h3" stroke="currentColor" strokeWidth="2" />
-    </svg>
-  );
+function scrollToSection(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function HomeScreen() {
@@ -862,127 +1017,222 @@ function HomeScreen() {
   const dashboard = isSuperAdminProfile(profile)
     ? "/super-admin/dashboard"
     : DASHBOARDS[profile?.role] ?? "/login";
+  const destination = user ? dashboard : "/login";
 
   return (
     <>
       <style>{STYLES}</style>
-      <div className="hp-root">
-        <div className="hp-shell">
-          <nav className="hp-nav">
-            <div className="hp-brand">
-              <BrandLogo
-                size={48}
-                titleColor="#111111"
-                subtitleColor="#666666"
-                subtitle="Operacion escolar con una identidad mas institucional y cuidada."
-              />
+      <main className="qh-home">
+        <div className="qh-home-shell">
+          <nav className="qh-home-nav" aria-label="Navegacion principal">
+            <BrandLogo
+              size={46}
+              titleColor="#141414"
+              subtitleColor="#626262"
+              subtitle="Asistencia escolar con QR"
+            />
+
+            <div className="qh-home-links">
+              {NAV_ITEMS.map(([label, id]) => (
+                <button key={id} type="button" className="qh-home-link" onClick={() => scrollToSection(id)}>
+                  {label}
+                </button>
+              ))}
             </div>
 
-            <div className="hp-links">
-              <a href="#solucion">Solucion</a>
-              <a href="#flujo">Flujo</a>
-              <a href="#roles">Roles</a>
+            <div className="qh-home-actions">
               {user ? (
                 <>
-                  <button type="button" className="hp-btn hp-btn-primary" onClick={() => navigate(dashboard)}>Mi panel</button>
-                  <button type="button" className="hp-btn hp-btn-danger" onClick={async () => { await signOut(); navigate("/"); }}>Cerrar sesion</button>
+                  <button type="button" className="qh-home-btn secondary" onClick={() => navigate(dashboard)}>
+                    Mi panel
+                  </button>
+                  <button
+                    type="button"
+                    className="qh-home-btn danger"
+                    onClick={async () => {
+                      await signOut();
+                      navigate("/");
+                    }}
+                  >
+                    Cerrar sesion
+                  </button>
                 </>
               ) : (
-                <button type="button" className="hp-btn hp-btn-primary" onClick={() => navigate("/login")}>Ingresar</button>
+                <button type="button" className="qh-home-btn primary" onClick={() => navigate("/login")}>
+                  Ingresar
+                  <Icon type="arrow" />
+                </button>
               )}
             </div>
           </nav>
 
-          <section className="hp-hero">
-            <div className="hp-copy">
-              <div className="hp-kicker"><span className="hp-dot" />Plataforma escolar profesional</div>
-              <h1>Asistencia <em>precisa</em>, seguimiento visible y una presencia lista para escalar.</h1>
-              <p>La plataforma conserva tus funciones actuales, pero ahora se presenta como una solucion educativa mas seria: registro rapido para docentes, lectura clara para direccion y una experiencia mucho mas confiable para familias.</p>
-              <div className="hp-actions">
-                <button type="button" className="hp-btn hp-btn-primary" onClick={() => navigate(user ? dashboard : "/login")}>
-                  <IconArrow />
-                  {user ? "Abrir panel" : "Entrar al sistema"}
+          <section className="qh-home-hero">
+            <div>
+              <div className="qh-home-kicker">
+                <img src="/qhere-icon.svg" alt="" />
+                Control escolar en tiempo real
+              </div>
+              <h1 className="qh-home-title">
+                Asistencia clara <span>para colegios.</span>
+              </h1>
+              <p className="qh-home-copy">
+                QHere reune registro QR, excusas, reportes y paneles por rol para mantener el control diario sin
+                perder contexto.
+              </p>
+
+              <div className="qh-home-actions" style={{ marginTop: 28 }}>
+                <button type="button" className="qh-home-btn primary" onClick={() => navigate(destination)}>
+                  {user ? "Abrir mi panel" : "Entrar al sistema"}
+                  <Icon type="arrow" />
                 </button>
-                <button type="button" className="hp-btn hp-btn-secondary" onClick={() => document.getElementById("solucion")?.scrollIntoView({ behavior: "smooth" })}>Ver la experiencia</button>
+                <button type="button" className="qh-home-btn secondary" onClick={() => scrollToSection("operacion")}>
+                  Ver operacion
+                </button>
               </div>
-              <div className="hp-metrics">
-                <div className="hp-metric"><strong>01</strong><span>flujo continuo para asistencia, incidencias y seguimiento institucional.</span></div>
-                <div className="hp-metric"><strong>QR</strong><span>registro inmediato desde camara o escritorio con mejor contexto visual.</span></div>
-                <div className="hp-metric"><strong>4 roles</strong><span>una sola plataforma con experiencias consistentes por perfil.</span></div>
-              </div>
-              <div className="hp-command-strip" aria-label="Indicadores principales del sistema">
-                <span className="hp-command-chip">Escaneo seguro</span>
-                <span className="hp-command-chip">Auditoria activa</span>
-                <span className="hp-command-chip">Centro seleccionado</span>
+
+              <div className="qh-home-proof" aria-label="Indicadores de ejemplo">
+                {HERO_STATS.map(([value, label]) => (
+                  <div key={label} className="qh-home-stat">
+                    <strong>{value}</strong>
+                    <span>{label}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="hp-stage">
-              <div className="hp-aura" />
-              <div className="hp-phone" aria-hidden="true">
-                <div className="hp-phone-screen">
-                  <div className="hp-phone-top">
-                    <div className="hp-phone-eyebrow">
-                      <span>Control mobile</span>
-                      <span className="hp-phone-live" />
-                    </div>
-                    <div className="hp-phone-title">Entrada <span>07:42</span></div>
+            <div className="qh-home-showcase">
+              <section className="qh-home-product" aria-label="Vista previa del panel QHere">
+                <div className="qh-home-product-top">
+                  <div className="qh-home-window-dots" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
                   </div>
-                  <div className="hp-phone-card">
+                  <div className="qh-home-product-label">QHere / jornada de hoy</div>
+                </div>
+
+                <div className="qh-home-product-body">
+                  <aside className="qh-home-product-side">
+                    <div className="qh-home-side-title">Paneles</div>
+                    {["Resumen", "QR", "Excusas", "Familias", "Reportes"].map((item, index) => (
+                      <div key={item} className={`qh-home-side-item ${index === 0 ? "active" : ""}`}>
+                        <span className="qh-home-side-dot" />
+                        {item}
+                      </div>
+                    ))}
+                  </aside>
+
+                  <div className="qh-home-board">
+                    <div className="qh-home-board-head">
+                      <div>
+                        <h2>Control de asistencia</h2>
+                        <p>Lunes, jornada matutina - Centro principal</p>
+                      </div>
+                      <span className="qh-home-live">En vivo</span>
+                    </div>
+
+                    <div className="qh-home-grid">
+                      <div className="qh-home-mini">
+                        <span>Presentes</span>
+                        <strong>248</strong>
+                      </div>
+                      <div className="qh-home-mini">
+                        <span>Tardanzas</span>
+                        <strong>17</strong>
+                      </div>
+                      <div className="qh-home-mini">
+                        <span>Ausencias</span>
+                        <strong>9</strong>
+                      </div>
+                    </div>
+
+                    <div className="qh-home-scan">
+                      <div className="qh-home-qr" aria-hidden="true">
+                        {Array.from({ length: 16 }, (_, index) => (
+                          <span key={index} />
+                        ))}
+                      </div>
+
+                      <div className="qh-home-activity">
+                        <div className="qh-home-row">
+                          <div>
+                            <strong>3ro B - Sofia Martinez</strong>
+                            <span>Entrada validada por QR a las 07:42</span>
+                          </div>
+                          <span className="qh-home-badge green">Presente</span>
+                        </div>
+                        <div className="qh-home-row">
+                          <div>
+                            <strong>5to A - Diego Rojas</strong>
+                            <span>Justificativo con adjunto pendiente</span>
+                          </div>
+                          <span className="qh-home-badge amber">Revision</span>
+                        </div>
+                        <div className="qh-home-row">
+                          <div>
+                            <strong>2do C - Maria Alvarez</strong>
+                            <span>Notificacion lista para la familia</span>
+                          </div>
+                          <span className="qh-home-badge green">Listo</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <div className="qh-home-phone" aria-hidden="true">
+                <div className="qh-home-phone-screen">
+                  <div className="qh-home-phone-top">
+                    <div className="qh-home-phone-kicker">
+                      <span>Control mobile</span>
+                      <span className="qh-home-phone-live" />
+                    </div>
+                    <div className="qh-home-phone-title">
+                      Entrada <span>07:42</span>
+                    </div>
+                  </div>
+                  <div className="qh-home-phone-card">
                     <strong>Asistencia confirmada</strong>
                     <p>El escaneo QR registra hora, curso y responsable en una sola vista.</p>
                   </div>
-                  <div className="hp-phone-row">
+                  <div className="qh-home-phone-row">
                     <div>
                       <strong>3ro B - Matutino</strong>
                       <span>28 presentes, 2 tardanzas</span>
                     </div>
-                    <div className="hp-phone-status">QR</div>
+                    <span className="qh-home-phone-chip">QR</span>
                   </div>
-                  <div className="hp-phone-row">
+                  <div className="qh-home-phone-row">
                     <div>
                       <strong>Alerta tutor</strong>
-                      <span>Notificacion lista para revision</span>
+                      <span>Notificacion lista</span>
                     </div>
-                    <div className="hp-phone-status red">!</div>
+                    <span className="qh-home-phone-chip red">!</span>
                   </div>
                 </div>
               </div>
-              <div className="hp-card hp-card-main">
-                <div className="hp-tag"><IconQr />Jornada escolar en vivo</div>
-                <h2>Un sistema que proyecta orden, criterio y control operativo.</h2>
-                <div className="hp-panels">
-                  <div className="hp-panel dark">
-                    <strong>Estado del dia</strong>
-                    <p>87% de asistencia al corte, 4 excusas en revision y alertas listas para accion inmediata.</p>
-                    <div className="hp-progress"><span /></div>
-                  </div>
-                  <div className="hp-panel">
-                    <strong>Lectura ejecutiva</strong>
-                    <p>Resumen ejecutivo del centro con indicadores faciles de leer y defender.</p>
-                  </div>
-                </div>
-                <div className="hp-list">
-                  <div className="hp-item"><div><strong>Excusa recibida</strong><span>Adjunto validado y lista para revision docente.</span></div><span className="hp-pill amber">Pendiente</span></div>
-                  <div className="hp-item"><div><strong>Registro confirmado</strong><span>Entrada visible para familia y administracion.</span></div><span className="hp-pill teal">Listo</span></div>
-                </div>
-                <div className="hp-note">La propuesta visual busca que el producto se vea tan confiable como la informacion que organiza.</div>
-              </div>
-              <div className="hp-card hp-card-side"><div className="hp-tag">Docente</div><h3>Escaneo con contexto</h3><p>El QR registra, ubica al alumno y deja un evento entendible de inmediato.</p></div>
-              <div className="hp-card hp-card-foot"><div className="hp-tag">Familia</div><h3>Seguimiento mas claro</h3><p>Historial y excusas visibles desde un flujo mucho mas sereno y profesional.</p></div>
             </div>
           </section>
 
-          <section id="solucion" className="hp-section">
-            <div className="hp-head">
-              <div className="hp-label">Diseno con criterio</div>
-              <h2>Una direccion visual mucho mas fuerte para todo el producto.</h2>
-              <p>La experiencia ahora se apoya en superficies limpias, contraste serio y composicion mas ejecutiva para que todo el sistema se vea premium.</p>
+          <section id="operacion" className="qh-home-section">
+            <div className="qh-home-section-head">
+              <div>
+                <div className="qh-home-label">Operacion escolar</div>
+                <h2>Menos friccion en cada registro.</h2>
+              </div>
+              <p>
+                La portada ahora presenta el sistema como una herramienta de trabajo: directa, confiable y lista
+                para usarse desde el primer clic.
+              </p>
             </div>
-            <div className="hp-grid">
-              {FEATURES.map(([title, copy]) => (
-                <article key={title} className="hp-feature">
-                  <div className="hp-icon"><IconQr /></div>
+
+            <div className="qh-home-feature-list">
+              {FEATURE_ROWS.map(([title, copy], index) => (
+                <article key={title} className="qh-home-feature">
+                  <div className="qh-home-icon">
+                    <Icon type={index === 0 ? "qr" : index === 1 ? "file" : "chart"} />
+                  </div>
                   <h3>{title}</h3>
                   <p>{copy}</p>
                 </article>
@@ -990,16 +1240,21 @@ function HomeScreen() {
             </div>
           </section>
 
-          <section id="flujo" className="hp-section">
-            <div className="hp-head">
-              <div className="hp-label">Flujo operativo</div>
-              <h2>Todo ocurre en una secuencia simple y visible.</h2>
-              <p>El rediseño comunica mejor el recorrido del sistema: desde el escaneo hasta la confirmacion que ven familias y direccion.</p>
+          <section id="flujo" className="qh-home-section">
+            <div className="qh-home-section-head">
+              <div>
+                <div className="qh-home-label">Flujo diario</div>
+                <h2>Del QR al seguimiento sin perder contexto.</h2>
+              </div>
+              <p>
+                Cada movimiento queda conectado: escaneo, estado, excusa, revision y lectura administrativa.
+              </p>
             </div>
-            <div className="hp-steps">
-              {STEPS.map(([step, title, copy]) => (
-                <article key={step} className="hp-step">
-                  <div className="hp-step-no">{step}</div>
+
+            <div className="qh-home-workflow">
+              {WORKFLOW.map(([step, title, copy]) => (
+                <article key={step} className="qh-home-step">
+                  <div className="qh-home-step-no">{step}</div>
                   <h3>{title}</h3>
                   <p>{copy}</p>
                 </article>
@@ -1007,41 +1262,60 @@ function HomeScreen() {
             </div>
           </section>
 
-          <section id="roles" className="hp-section">
-            <div className="hp-head">
-              <div className="hp-label">Experiencia por rol</div>
-              <h2>La plataforma se adapta a quien la usa.</h2>
-              <p>Cada perfil mantiene sus permisos actuales, pero ahora dentro de una interfaz mas sobria, clara y coherente.</p>
+          <section id="roles" className="qh-home-section">
+            <div className="qh-home-section-head">
+              <div>
+                <div className="qh-home-label">Acceso por rol</div>
+                <h2>Una entrada clara para cada usuario.</h2>
+              </div>
+              <p>
+                El mismo sistema entrega vistas distintas segun el perfil, manteniendo permisos y tareas bien
+                separados.
+              </p>
             </div>
-            <div className="hp-roles">
-              <article className="hp-role amber"><h3>Direccion</h3><p>Vista ejecutiva del centro, estructura academica y control de usuarios.</p></article>
-              <article className="hp-role teal"><h3>Docente</h3><p>Escaneo QR, registro manual, revision de excusas y seguimiento diario.</p></article>
-              <article className="hp-role ivory"><h3>Padres y tutores</h3><p>Historial, asistencia y envio de justificativos sin friccion.</p></article>
-              <article className="hp-role slate"><h3>Estudiante</h3><p>Consulta personal de asistencia y acceso rapido a su informacion clave.</p></article>
+
+            <div className="qh-home-roles">
+              {ROLES.map(([title, copy], index) => (
+                <article key={title} className="qh-home-role">
+                  <div className="qh-home-icon">
+                    <Icon type={index === 0 ? "chart" : index === 1 ? "qr" : index === 2 ? "file" : "user"} />
+                  </div>
+                  <h3>{title}</h3>
+                  <p>{copy}</p>
+                </article>
+              ))}
             </div>
           </section>
 
-          <section className="hp-cta-wrap">
-            <div className="hp-cta">
-              <div className="hp-label" style={{ color: "rgba(255,255,255,.78)" }}>Entrada al sistema</div>
-              <h3>Una portada lista para dar una primera impresion mucho mas fuerte.</h3>
-              <p>Accede al login y continua con un lenguaje visual mas profesional, mejor ritmo de lectura y una sensacion mucho mas premium en todo el proyecto.</p>
-              <div className="hp-cta-actions">
-                <button type="button" className="hp-btn hp-btn-primary" onClick={() => navigate(user ? dashboard : "/login")}>
-                  <IconArrow />
-                  {user ? "Ir a mi panel" : "Entrar ahora"}
+          <section className="qh-home-cta-wrap">
+            <div className="qh-home-cta">
+              <div>
+                <div className="qh-home-label">Entrada al sistema</div>
+                <h2>Empieza la jornada desde un lugar mas claro.</h2>
+                <p>
+                  Accede al panel que corresponde a tu rol y continua con asistencia, excusas o gestion escolar.
+                </p>
+              </div>
+              <div className="qh-home-cta-actions">
+                <button type="button" className="qh-home-btn primary" onClick={() => navigate(destination)}>
+                  {user ? "Ir al panel" : "Ingresar"}
+                  <Icon type="arrow" />
                 </button>
-                {!user && <button type="button" className="hp-btn hp-btn-secondary" onClick={() => document.getElementById("roles")?.scrollIntoView({ behavior: "smooth" })}>Ver roles</button>}
+                {!user ? (
+                  <button type="button" className="qh-home-btn secondary" onClick={() => navigate("/director/register")}>
+                    Solicitud de registro
+                  </button>
+                ) : null}
               </div>
             </div>
           </section>
 
-          <footer className="hp-footer">
-            <span className="hp-footer-brand"><BrandLogo compact size={28} titleColor="#111111" subtitleColor="#666666" /> - asistencia escolar con una presencia visual mucho mas profesional.</span>
-            <span>Diseno enfocado en criterio institucional, claridad y continuidad operativa.</span>
+          <footer className="qh-home-footer">
+            <span>QHere - asistencia, excusas y control escolar.</span>
+            <span>Hecho para jornadas que necesitan orden desde temprano.</span>
           </footer>
         </div>
-      </div>
+      </main>
     </>
   );
 }

@@ -165,22 +165,33 @@ def send_direct_email(recipient_email, subject, body_lines):
         _send_message(message, settings)
         return {'channel': 'email', 'recipient_email': recipient_email, 'subject': subject}
     except Exception as exc:
-        queued = queue_panel_notification(
-            recipient_email,
-            subject,
-            body_lines,
-            payload={
-                'fallback_reason': str(exc),
-                'delivery': 'panel',
-            },
-        )
-        return {
-            'channel': 'panel',
-            'recipient_email': recipient_email,
-            'subject': subject,
-            'queued': queued,
-            'fallback_reason': str(exc),
-        }
+        fallback_reason = str(exc)
+
+        try:
+            queued = queue_panel_notification(
+                recipient_email,
+                subject,
+                body_lines,
+                payload={
+                    'fallback_reason': fallback_reason,
+                    'delivery': 'panel',
+                },
+            )
+            return {
+                'channel': 'panel',
+                'recipient_email': recipient_email,
+                'subject': subject,
+                'queued': queued,
+                'fallback_reason': fallback_reason,
+            }
+        except Exception as fallback_exc:
+            return {
+                'channel': 'failed',
+                'recipient_email': recipient_email,
+                'subject': subject,
+                'fallback_reason': fallback_reason,
+                'fallback_error': str(fallback_exc),
+            }
 
 
 def process_pending_email_notifications(limit=20):
