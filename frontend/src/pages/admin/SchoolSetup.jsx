@@ -1049,10 +1049,62 @@ function getFirstDayOfMonth(year, month) {
   return new Date(year, month, 1).getDay()
 }
 
+function toDateOnly(value) {
+  if (!value) return null
+  const date = new Date(`${value}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function formatDateInput(date) {
+  return date.toISOString().slice(0, 10)
+}
+
+function getCurrentMonthPeriod() {
+  const now = new Date()
+  return {
+    start: formatDateInput(new Date(now.getFullYear(), now.getMonth(), 1)),
+    end: formatDateInput(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+  }
+}
+
+function getCurrentSchoolYearPeriod() {
+  const now = new Date()
+  const year = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
+  return {
+    start: formatDateInput(new Date(year, 7, 1)),
+    end: formatDateInput(new Date(year + 1, 5, 30)),
+  }
+}
+
+function getAcademicPeriodError(data) {
+  const start = toDateOnly(data.academic_period_start)
+  const end = toDateOnly(data.academic_period_end)
+  if (!start || !end) return 'Define inicio y fin del periodo academico.'
+  if (end < start) return 'El fin del periodo no puede ser anterior al inicio.'
+
+  const diffDays = Math.round((end - start) / 86400000) + 1
+  if (diffDays < 28) return 'El periodo debe cubrir al menos un mes operativo.'
+  if (diffDays > 370) return 'El periodo no debe superar un ano escolar completo.'
+
+  return ''
+}
+
+function buildSectionLetters(startLetter, count) {
+  const startIndex = Math.max(0, SECCIONES_DEFAULT.indexOf(startLetter || 'A'))
+  return Array.from({ length: Number(count) || 1 }, (_, index) => SECCIONES_DEFAULT[startIndex + index])
+    .filter(Boolean)
+}
+
 /* ══════════════════════════════════
    STEP 1 — DATOS DE LA ESCUELA
    ══════════════════════════════════ */
 function Step1({ data, onChange }) {
+  const periodError = getAcademicPeriodError(data)
+  const applyPeriod = (period) => {
+    onChange('academic_period_start', period.start)
+    onChange('academic_period_end', period.end)
+  }
+
   return (
     <div key="step1" style={{animation:'ssFadeUp 0.4s ease-out both'}}>
       <div className="ss-card-title">Ajustes operativos del centro</div>
@@ -1081,7 +1133,29 @@ function Step1({ data, onChange }) {
         </div>
       </div>
 
-      <div className="ss-grid-2">
+      <div
+        style={{
+          marginTop: 18,
+          marginBottom: 14,
+          background: '#ffffff',
+          border: '1px solid #dededb',
+          borderRadius: 14,
+          padding: 18,
+        }}
+      >
+        <div className="ss-card-title" style={{ fontSize: 16, marginBottom: 4 }}>Periodo academico</div>
+        <div className="ss-card-sub" style={{ marginBottom: 14 }}>
+          Elige un mes de trabajo, el ano escolar completo o ajusta fechas propias. El sistema no aceptara fechas invertidas.
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          <button type="button" className="ss-btn-skip" onClick={() => applyPeriod(getCurrentMonthPeriod())}>
+            Usar mes actual
+          </button>
+          <button type="button" className="ss-btn-skip" onClick={() => applyPeriod(getCurrentSchoolYearPeriod())}>
+            Usar ano escolar completo
+          </button>
+        </div>
+        <div className="ss-grid-2">
         <div className="ss-field">
           <label className="ss-label">Inicio del periodo academico *</label>
           <input
@@ -1100,6 +1174,12 @@ function Step1({ data, onChange }) {
             onChange={e => onChange('academic_period_end', e.target.value)}
           />
         </div>
+        </div>
+        {periodError && (
+          <div style={{ marginTop: 8, color: '#b91c1c', fontSize: 12, fontWeight: 700 }}>
+            {periodError}
+          </div>
+        )}
       </div>
 
       <div
@@ -1161,404 +1241,192 @@ function Step1({ data, onChange }) {
    STEP 2 — GRADOS Y SECCIONES
    ══════════════════════════════════ */
 function Step2({ secciones, setSecciones, onSaveCourses, savingCourses }) {
-  const [availableCourses, setAvailableCourses] = useState(CURSOS_DEFAULT)
-  const [availableGrades, setAvailableGrades] = useState(GRADOS_DEFAULT)
   const [curso, setCurso] = useState('Primaria')
-  const [newCourse, setNewCourse] = useState('')
   const [grado, setGrado] = useState('1ro')
-  const [newGrade, setNewGrade] = useState('')
   const [turno, setTurno] = useState('manana')
-  const [selectedSections, setSelectedSections] = useState(['A'])
+  const [startLetter, setStartLetter] = useState('A')
+  const [sectionCount, setSectionCount] = useState(1)
   const [useSpecialSchedule, setUseSpecialSchedule] = useState(false)
   const [specialEntrada, setSpecialEntrada] = useState('')
   const [specialTardanza, setSpecialTardanza] = useState('')
   const [specialSalida, setSpecialSalida] = useState('')
 
-  useEffect(() => {
-    const courseSet = new Set(CURSOS_DEFAULT)
-    const gradeSet = new Set(GRADOS_DEFAULT)
+  const turnoLabel = { manana: 'Manana', tarde: 'Tarde', noche: 'Noche' }
+  const label = buildAcademicLabel(curso, grado)
+  const previewLetters = buildSectionLetters(startLetter, sectionCount)
+  const existingKeys = new Set(secciones.map(item => buildSectionKey(item.grado, item.seccion, item.turno)))
+  const previewRows = previewLetters.map(letter => ({
+    grado: label,
+    seccion: letter,
+    turno,
+    exists: existingKeys.has(buildSectionKey(label, letter, turno)),
+  }))
+  const groupedSections = secciones.reduce((acc, section) => {
+    const meta = parseAcademicLabel(section.grado)
+    const groupKey = `${meta.curso || 'General'} / ${meta.grado || section.grado}`
+    if (!acc[groupKey]) acc[groupKey] = []
+    acc[groupKey].push(section)
+    return acc
+  }, {})
 
-    secciones.forEach(item => {
-      const meta = parseAcademicLabel(item.grado)
-      if (meta.curso) courseSet.add(meta.curso)
-      if (meta.grado) gradeSet.add(meta.grado)
-    })
-
-    const nextCourses = Array.from(courseSet)
-    const nextGrades = Array.from(gradeSet)
-
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAvailableCourses(nextCourses)
-    setAvailableGrades(nextGrades)
-
-    if (!nextCourses.includes(curso) && nextCourses.length) {
-      setCurso(nextCourses[0])
+  async function addBlock() {
+    if (!label) {
+      alert('Selecciona curso y grado antes de crear secciones.')
+      return
     }
 
-    if (!nextGrades.includes(grado) && nextGrades.length) {
-      setGrado(nextGrades[0])
-    }
-  }, [secciones, curso, grado])
-
-  const buildSectionRows = ({ targetCurso = curso, targetGrado = grado, targetTurno = turno } = {}) => {
-    const label = buildAcademicLabel(targetCurso, targetGrado)
-    if (!label) return []
-
-    const existingKeys = new Set(secciones.map(item => buildSectionKey(item.grado, item.seccion, item.turno)))
-    const lettersToAdd = selectedSections.length ? selectedSections : ['A']
-
-    return lettersToAdd
-      .filter(letter => !existingKeys.has(buildSectionKey(label, letter, targetTurno)))
-      .map(letter => ({
-        grado: label,
-        seccion: letter,
-        turno: targetTurno,
-        id: `${buildSectionKey(label, letter, targetTurno)}::${Date.now()}::${Math.random().toString(36).slice(2, 7)}`,
+    const nextRows = previewRows
+      .filter(row => !row.exists)
+      .map(row => ({
+        grado: row.grado,
+        seccion: row.seccion,
+        turno: row.turno,
+        id: `${buildSectionKey(row.grado, row.seccion, row.turno)}::${Date.now()}::${Math.random().toString(36).slice(2, 7)}`,
         special_schedule_enabled: useSpecialSchedule,
         hora_entrada_especial: useSpecialSchedule ? specialEntrada : '',
         hora_limite_tardanza_especial: useSpecialSchedule ? specialTardanza : '',
         hora_salida_especial: useSpecialSchedule ? specialSalida : '',
       }))
-  }
 
-  const resetSectionDraft = () => {
-    setUseSpecialSchedule(false)
-    setSpecialEntrada('')
-    setSpecialTardanza('')
-    setSpecialSalida('')
-  }
-
-  const appendAndSaveRows = async (nextRows) => {
-    if (!nextRows.length) return
+    if (!nextRows.length) {
+      alert('Ese bloque ya existe. Cambia la letra inicial, cantidad o turno.')
+      return
+    }
 
     const nextSections = [...secciones, ...nextRows]
     setSecciones(nextSections)
-    resetSectionDraft()
-
-    if (onSaveCourses) {
-      await onSaveCourses(nextSections, { silent: true })
-    }
+    if (onSaveCourses) await onSaveCourses(nextSections, { silent: true })
   }
 
-  const addCourseToCatalog = async () => {
-    const value = newCourse.trim()
-    if (!value) return
-    setAvailableCourses(prev => prev.includes(value) ? prev : [...prev, value])
-    setCurso(value)
-    setNewCourse('')
-
-    const nextRows = buildSectionRows({ targetCurso: value })
-    await appendAndSaveRows(nextRows)
-  }
-
-  const addGradeToCatalog = () => {
-    const value = newGrade.trim()
-    if (!value) return
-    setAvailableGrades(prev => prev.includes(value) ? prev : [...prev, value])
-    setGrado(value)
-    setNewGrade('')
-  }
-
-  const toggleSectionSelection = (letter) => {
-    setSelectedSections(prev => (
-      prev.includes(letter)
-        ? prev.filter(item => item !== letter)
-        : [...prev, letter]
-    ))
-  }
-
-  const addSeccion = async () => {
-    const nextRows = buildSectionRows()
-    await appendAndSaveRows(nextRows)
-  }
-
-  const removeSeccion = (id) => setSecciones(prev => prev.filter(s => s.id !== id))
   const updateSeccion = (id, field, value) => {
     setSecciones(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item))
   }
 
-  const turnoLabel = { manana: 'Manana', tarde: 'Tarde', noche: 'Noche' }
-  const orderedSections = [...secciones].sort((a, b) => {
-    const gradeCompare = a.grado.localeCompare(b.grado)
-    if (gradeCompare !== 0) return gradeCompare
-    const turnoCompare = a.turno.localeCompare(b.turno)
-    if (turnoCompare !== 0) return turnoCompare
-    return a.seccion.localeCompare(b.seccion)
-  })
+  const removeDraftSeccion = (id) => {
+    setSecciones(prev => prev.filter(section => section.id !== id))
+  }
 
   return (
     <div key="step2" style={{animation:'ssFadeUp 0.4s ease-out both'}}>
-      <div className="ss-card-title">Estructura academica</div>
-      <div className="ss-card-sub">Aqui separas la oferta academica del centro. Primero eliges el curso y el grado; despues abres las secciones y turnos que realmente vas a usar.</div>
+      <div className="ss-card-title">Secciones por bloques</div>
+      <div className="ss-card-sub">Crea bloques claros por nivel, grado y turno. Cada bloque muestra una vista previa antes de guardarse para evitar duplicados.</div>
 
-      <div className="ss-academic-grid" style={{ marginBottom: 16 }}>
-        <div className="ss-academic-card">
-          <div className="ss-academic-card-title">Catalogo de cursos</div>
-          <div className="ss-academic-card-sub">Agrega cursos aparte del centro y luego usalos para abrir secciones.</div>
-          <div className="ss-add-row" style={{ marginBottom: 0 }}>
-            <div className="ss-field">
-              <input
-                className="ss-input"
-                placeholder="Ej: Pre-media, Comercio, Robotica"
-                value={newCourse}
-                onChange={e => setNewCourse(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    void addCourseToCatalog()
-                  }
-                }}
-              />
-            </div>
-            <button
-              type="button"
-              className="ss-btn-add"
-              onClick={() => void addCourseToCatalog()}
-              disabled={savingCourses}
-            >
-              {savingCourses ? 'Guardando...' : 'Agregar y guardar curso'}
-            </button>
+      <div className="ss-academic-card" style={{ marginBottom: 16 }}>
+        <div className="ss-academic-card-title">Nuevo bloque de secciones</div>
+        <div className="ss-grid-3" style={{ marginTop: 14 }}>
+          <div className="ss-field" style={{ marginBottom: 0 }}>
+            <label className="ss-label">Nivel o curso</label>
+            <select className="ss-select" value={curso} onChange={e => setCurso(e.target.value)}>
+              {CURSOS_DEFAULT.map(item => <option key={item} value={item}>{item}</option>)}
+            </select>
           </div>
-          <div className="ss-catalog-list">
-            {availableCourses.map(item => (
-              <button
-                key={item}
-                type="button"
-                className={`ss-catalog-chip${curso === item ? ' active' : ''}`}
-                onClick={() => setCurso(item)}
-              >
-                {item}
-              </button>
-            ))}
+          <div className="ss-field" style={{ marginBottom: 0 }}>
+            <label className="ss-label">Grado</label>
+            <select className="ss-select" value={grado} onChange={e => setGrado(e.target.value)}>
+              {GRADOS_DEFAULT.map(item => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </div>
+          <div className="ss-field" style={{ marginBottom: 0 }}>
+            <label className="ss-label">Turno</label>
+            <select className="ss-select" value={turno} onChange={e => setTurno(e.target.value)}>
+              {TURNOS_DEFAULT.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </select>
           </div>
         </div>
 
-        <div className="ss-academic-card">
-          <div className="ss-academic-card-title">Catalogo de grados</div>
-          <div className="ss-academic-card-sub">Mantiene los grados separados del curso para que no parezca una reconfiguracion del centro.</div>
-          <div className="ss-add-row" style={{ marginBottom: 0 }}>
-            <div className="ss-field">
-              <input
-                className="ss-input"
-                placeholder="Ej: 4to, Modulo 2, Nivel 3"
-                value={newGrade}
-                onChange={e => setNewGrade(e.target.value)}
-              />
-            </div>
-            <button type="button" className="ss-btn-add" onClick={addGradeToCatalog}>
-              Agregar grado
-            </button>
+        <div className="ss-grid-3" style={{ marginTop: 14 }}>
+          <div className="ss-field" style={{ marginBottom: 0 }}>
+            <label className="ss-label">Primera seccion</label>
+            <select className="ss-select" value={startLetter} onChange={e => setStartLetter(e.target.value)}>
+              {SECCIONES_DEFAULT.map(letter => <option key={letter} value={letter}>{letter}</option>)}
+            </select>
           </div>
-          <div className="ss-catalog-list">
-            {availableGrades.map(item => (
-              <button
-                key={item}
-                type="button"
-                className={`ss-catalog-chip${grado === item ? ' active' : ''}`}
-                onClick={() => setGrado(item)}
-              >
-                {item}
-              </button>
-            ))}
+          <div className="ss-field" style={{ marginBottom: 0 }}>
+            <label className="ss-label">Cantidad</label>
+            <input className="ss-input" type="number" min="1" max="10" value={sectionCount} onChange={e => setSectionCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))} />
           </div>
-        </div>
-      </div>
-
-      <div className="ss-grid-3" style={{ marginBottom: 16 }}>
-        <div className="ss-field" style={{ marginBottom: 0 }}>
-          <label className="ss-label">Curso seleccionado</label>
-          <select className="ss-select" value={curso} onChange={e => setCurso(e.target.value)}>
-            {availableCourses.map(item => <option key={item} value={item}>{item}</option>)}
-          </select>
-        </div>
-        <div className="ss-field" style={{ marginBottom: 0 }}>
-          <label className="ss-label">Grado seleccionado</label>
-          <select className="ss-select" value={grado} onChange={e => setGrado(e.target.value)}>
-            {availableGrades.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-        </div>
-        <div className="ss-field" style={{ marginBottom: 0 }}>
-          <label className="ss-label">Turno</label>
-          <select className="ss-select" value={turno} onChange={e => setTurno(e.target.value)}>
-            {TURNOS_DEFAULT.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-          </select>
-        </div>
-      </div>
-
-      <div
-        style={{
-          marginBottom: 14,
-          background: '#ffffff',
-          border: '1px solid #dededb',
-          borderRadius: 12,
-          padding: 16,
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-          <div>
-            <div className="ss-card-title" style={{ fontSize: 16, marginBottom: 4 }}>Secciones a crear</div>
-            <div className="ss-card-sub" style={{ marginBottom: 0 }}>
-                Curso activo: <strong style={{ color: '#111111' }}>{curso || 'Sin curso'}</strong> - Grado: <strong style={{ color: '#111111' }}>{grado || 'Sin grado'}</strong> - Turno: <strong style={{ color: '#111111' }}>{turnoLabel[turno]}</strong>
+          <div className="ss-field" style={{ marginBottom: 0 }}>
+            <label className="ss-label">Vista previa</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {previewRows.map(row => (
+                <span key={`${row.seccion}-${row.turno}`} className={`ss-badge${row.exists ? ' rejected' : ' approved'}`}>
+                  {row.grado} {row.seccion} / {turnoLabel[row.turno]}
+                </span>
+              ))}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" className="ss-btn-add" onClick={() => void addSeccion()} disabled={savingCourses}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-              {savingCourses ? 'Guardando...' : 'Crear y guardar secciones'}
-            </button>
-            <button
-              type="button"
-              className="ss-btn-primary"
-              onClick={() => void onSaveCourses()}
-              disabled={savingCourses || secciones.length === 0}
-            >
-              {savingCourses ? 'Guardando...' : 'Guardar cursos'}
-            </button>
-            <button type="button" className="ss-btn-skip" onClick={() => setSelectedSections([...SECCIONES_DEFAULT])}>
-              Marcar A-J
-            </button>
-            <button type="button" className="ss-btn-skip" onClick={() => setSelectedSections([])}>
-              Limpiar
-            </button>
-          </div>
         </div>
 
-        <div className="ss-tags">
-          {SECCIONES_DEFAULT.map(letter => {
-            const active = selectedSections.includes(letter)
-            return (
-              <button
-                key={letter}
-                type="button"
-                onClick={() => toggleSectionSelection(letter)}
-                style={{
-                  border: active ? '1px solid #111111' : '1px solid #c9c9c5',
-                  background: active ? '#111111' : '#fff',
-                  color: active ? '#fff' : '#111111',
-                  borderRadius: 8,
-                  padding: '8px 14px',
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                Seccion {letter}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      <div
-        style={{
-          marginBottom: 14,
-          background: '#ffffff',
-          border: '1px solid #dededb',
-          borderRadius: 12,
-          padding: 16,
-        }}
-      >
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, color: '#111111' }}>
-          <input
-            type="checkbox"
-            checked={useSpecialSchedule}
-            onChange={e => setUseSpecialSchedule(e.target.checked)}
-          />
-          Aplicar horario especial a las secciones que se agregaran ahora
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 700, color: '#111111', marginTop: 16 }}>
+          <input type="checkbox" checked={useSpecialSchedule} onChange={e => setUseSpecialSchedule(e.target.checked)} />
+          Este bloque usa un horario especial
         </label>
-
         {useSpecialSchedule && (
-          <div className="ss-grid-3" style={{ marginTop: 14 }}>
-            <div className="ss-field" style={{ marginBottom: 0 }}>
-              <label className="ss-label">Entrada especial</label>
-              <input className="ss-input" type="time" value={specialEntrada} onChange={e => setSpecialEntrada(e.target.value)} />
-            </div>
-            <div className="ss-field" style={{ marginBottom: 0 }}>
-              <label className="ss-label">Tardanza especial</label>
-              <input className="ss-input" type="time" value={specialTardanza} onChange={e => setSpecialTardanza(e.target.value)} />
-            </div>
-            <div className="ss-field" style={{ marginBottom: 0 }}>
-              <label className="ss-label">Salida especial</label>
-              <input className="ss-input" type="time" value={specialSalida} onChange={e => setSpecialSalida(e.target.value)} />
-            </div>
+          <div className="ss-grid-3" style={{ marginTop: 12 }}>
+            <input className="ss-input" aria-label="Entrada especial" type="time" value={specialEntrada} onChange={e => setSpecialEntrada(e.target.value)} />
+            <input className="ss-input" aria-label="Limite de tardanza especial" type="time" value={specialTardanza} onChange={e => setSpecialTardanza(e.target.value)} />
+            <input className="ss-input" aria-label="Salida especial" type="time" value={specialSalida} onChange={e => setSpecialSalida(e.target.value)} />
           </div>
         )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <button type="button" className="ss-btn-add" onClick={() => void addBlock()} disabled={savingCourses}>
+            {savingCourses ? 'Guardando...' : 'Crear bloque'}
+          </button>
+          <button type="button" className="ss-btn-primary" onClick={() => void onSaveCourses()} disabled={savingCourses || secciones.length === 0}>
+            Guardar secciones
+          </button>
+        </div>
       </div>
 
-      <div className="ss-tags" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
-        {orderedSections.length === 0 && (
-          <span style={{fontSize:13,color:'#666666',fontStyle:'italic'}}>No hay cursos agregados aun</span>
-        )}
-        {orderedSections.map(s => (
-          <div
-            key={s.id}
-            style={{
-              background: '#fff',
-              border: '1px solid #dededb',
-              borderRadius: 14,
-              padding: 16,
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
-              <div>
-                <div style={{ fontWeight: 700, color: '#111111' }}>{s.grado} {s.seccion}</div>
-                <div style={{ fontSize: 12, color: '#666666', marginTop: 4 }}>Turno: {turnoLabel[s.turno]}</div>
-                <div style={{ fontSize: 12, color: s.special_schedule_enabled ? '#111111' : '#666666', marginTop: 6 }}>
-                  {s.special_schedule_enabled ? 'Horario especial activo' : 'Usa horario general del turno'}
-                </div>
+      <div className="ss-card-title" style={{ fontSize: 17 }}>Secciones existentes</div>
+      <div className="ss-card-sub">Agrupadas por nivel y grado para que se vea exactamente que tiene cada turno.</div>
+
+      {Object.keys(groupedSections).length === 0 ? (
+        <div className="ss-empty">Todavia no hay secciones creadas.</div>
+      ) : (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {Object.entries(groupedSections).map(([group, rows]) => (
+            <div key={group} className="ss-academic-card">
+              <div className="ss-academic-card-title">{group}</div>
+              <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                {rows
+                  .sort((a, b) => a.turno.localeCompare(b.turno) || a.seccion.localeCompare(b.seccion))
+                  .map(section => (
+                    <div key={section.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', padding: 12, border: '1px solid #dededb', borderRadius: 12, background: '#fff' }}>
+                      <div>
+                        <strong>{section.grado} {section.seccion}</strong>
+                        <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                          Turno {turnoLabel[section.turno]} / {section.special_schedule_enabled ? 'Horario especial' : 'Horario general'}
+                        </div>
+                      </div>
+                      {!isPersistedSectionId(section.id) ? (
+                        <button type="button" className="ss-tag-remove" onClick={() => removeDraftSeccion(section.id)}>x</button>
+                      ) : (
+                        <span className="ss-badge approved">Guardada</span>
+                      )}
+                      <label style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 700 }}>
+                        <input type="checkbox" checked={Boolean(section.special_schedule_enabled)} onChange={e => updateSeccion(section.id, 'special_schedule_enabled', e.target.checked)} />
+                        Horario especial para esta seccion
+                      </label>
+                      {section.special_schedule_enabled && (
+                        <div className="ss-grid-3" style={{ gridColumn: '1 / -1' }}>
+                          <input className="ss-input" aria-label="Entrada especial" type="time" value={section.hora_entrada_especial || ''} onChange={e => updateSeccion(section.id, 'hora_entrada_especial', e.target.value)} />
+                          <input className="ss-input" aria-label="Limite de tardanza especial" type="time" value={section.hora_limite_tardanza_especial || ''} onChange={e => updateSeccion(section.id, 'hora_limite_tardanza_especial', e.target.value)} />
+                          <input className="ss-input" aria-label="Salida especial" type="time" value={section.hora_salida_especial || ''} onChange={e => updateSeccion(section.id, 'hora_salida_especial', e.target.value)} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
               </div>
-              <button className="ss-tag-remove" onClick={() => removeSeccion(s.id)}>×</button>
             </div>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, color: '#111111', marginTop: 14 }}>
-              <input
-                type="checkbox"
-                checked={Boolean(s.special_schedule_enabled)}
-                onChange={e => updateSeccion(s.id, 'special_schedule_enabled', e.target.checked)}
-              />
-              Aplicar horario especial a esta seccion
-            </label>
-
-            {s.special_schedule_enabled && (
-              <div className="ss-grid-3" style={{ marginTop: 14 }}>
-                <div className="ss-field" style={{ marginBottom: 0 }}>
-                  <label className="ss-label">Entrada especial</label>
-                  <input
-                    className="ss-input"
-                    type="time"
-                    value={s.hora_entrada_especial || ''}
-                    onChange={e => updateSeccion(s.id, 'hora_entrada_especial', e.target.value)}
-                  />
-                </div>
-                <div className="ss-field" style={{ marginBottom: 0 }}>
-                  <label className="ss-label">Tardanza especial</label>
-                  <input
-                    className="ss-input"
-                    type="time"
-                    value={s.hora_limite_tardanza_especial || ''}
-                    onChange={e => updateSeccion(s.id, 'hora_limite_tardanza_especial', e.target.value)}
-                  />
-                </div>
-                <div className="ss-field" style={{ marginBottom: 0 }}>
-                  <label className="ss-label">Salida especial</label>
-                  <input
-                    className="ss-input"
-                    type="time"
-                    value={s.hora_salida_especial || ''}
-                    onChange={e => updateSeccion(s.id, 'hora_salida_especial', e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-/* ══════════════════════════════════
-   STEP 3 — HORARIOS
-   ══════════════════════════════════ */
 function Step3({ horarios, setHorarios }) {
   const turnos = [
     { id: 'manana', label: 'Turno Mañana', emoji: '🌅' },
@@ -2348,6 +2216,7 @@ export default function SchoolSetup() {
         schoolData.nombre.trim().length > 0
         && schoolData.academic_period_start
         && schoolData.academic_period_end
+        && !getAcademicPeriodError(schoolData)
       )
     }
     return true
@@ -2368,6 +2237,19 @@ export default function SchoolSetup() {
 
   async function saveSections(currentSchoolId, sectionsToSave = secciones) {
     const normalizedSections = Array.isArray(sectionsToSave) ? sectionsToSave : secciones
+    const seen = new Set()
+    for (const section of normalizedSections) {
+      const key = buildSectionKey(section.grado, section.seccion, section.turno)
+      if (seen.has(key)) {
+        throw new Error(`La seccion ${section.grado} ${section.seccion} / ${section.turno} esta duplicada.`)
+      }
+      seen.add(key)
+      if (section.special_schedule_enabled) {
+        if (!section.hora_entrada_especial || !section.hora_limite_tardanza_especial || !section.hora_salida_especial) {
+          throw new Error(`Completa el horario especial de ${section.grado} ${section.seccion}.`)
+        }
+      }
+    }
     const result = await saveSchoolSections(currentSchoolId, normalizedSections)
     const savedSections = (result.sections || []).map(mapSavedSection)
     setSecciones(savedSections)
@@ -2436,6 +2318,11 @@ export default function SchoolSetup() {
   }
 
   async function saveSchoolMetadata(currentSchoolId) {
+    const periodError = getAcademicPeriodError(schoolData)
+    if (periodError) {
+      throw new Error(periodError)
+    }
+
     const fullPayload = {
       nombre: schoolData.nombre,
       direccion: schoolData.direccion,

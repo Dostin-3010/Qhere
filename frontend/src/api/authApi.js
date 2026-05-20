@@ -38,14 +38,31 @@ export async function fetchProfile(userId, authUser = null) {
 }
 
 export async function fetchAvailableSchools() {
-  const { data, error } = await supabase
+  const { data: schools, error } = await supabase
     .from('schools')
     .select('id, nombre, configurado')
     .order('nombre', { ascending: true })
 
   if (error) throw error
 
-  return data ?? []
+  const rows = schools ?? []
+
+  try {
+    const { data: approvedProfiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('school_id')
+      .eq('approval_status', 'approved')
+      .not('school_id', 'is', null)
+
+    if (profileError) throw profileError
+
+    const approvedSchoolIds = new Set((approvedProfiles ?? []).map((profile) => profile.school_id))
+
+    return rows.filter((school) => school.configurado || approvedSchoolIds.has(school.id))
+  } catch (profileError) {
+    console.error('Error filtering approved schools:', profileError)
+    return rows.filter((school) => school.configurado)
+  }
 }
 
 export async function resolveDashboardPath(profile) {

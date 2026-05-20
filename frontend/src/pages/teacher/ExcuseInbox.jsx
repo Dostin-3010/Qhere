@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { reviewExcuse } from '../../api/backendApi'
 import AdminSidebarProfileCard from '../../components/layout/AdminSidebarProfileCard'
 import BrandLogo from '../../components/ui/BrandLogo'
 
@@ -291,36 +292,7 @@ export default function ExcuseInbox() {
   async function handleApprove(excuse) {
     setSaving(true)
     try {
-      // 1) Actualizar estado de la excusa
-      const { error } = await supabase
-        .from('excuses')
-        .update({ status: 'approved', teacher_id: profile?.id })
-        .eq('id', excuse.id)
-      if (error) throw error
-
-      // 2) Si tiene attendance_id, actualizar estado a 'justificado'
-      if (excuse.attendance_id) {
-        await supabase
-          .from('attendance')
-          .update({ estado: 'justificado' })
-          .eq('id', excuse.attendance_id)
-      } else {
-        // Buscar el registro de attendance de esa fecha y estudiante
-        const { data: att } = await supabase
-          .from('attendance')
-          .select('id')
-          .eq('student_id', excuse.student_id)
-          .eq('fecha', excuse.absence_date)
-          .limit(1)
-        if (att?.length) {
-          await supabase
-            .from('attendance')
-            .update({ estado: 'justificado' })
-            .eq('id', att[0].id)
-        }
-      }
-
-      // 3) Audit log
+      await reviewExcuse(excuse.id, { status: 'approved' })
       await registrarAudit('aprobar_excusa', 'excuses', excuse.id)
 
       toast(`Excusa de ${getStudentName(excuse.students)} aprobada.`, 'success')
@@ -343,15 +315,10 @@ export default function ExcuseInbox() {
     if (!comentario.trim()) { toast('El comentario es obligatorio al rechazar.', 'error'); return }
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from('excuses')
-        .update({
-          status:          'rejected',
-          teacher_comment: comentario.trim(),
-          teacher_id:      profile?.id,
-        })
-        .eq('id', rejectTarget.id)
-      if (error) throw error
+      await reviewExcuse(rejectTarget.id, {
+        status: 'rejected',
+        teacher_comment: comentario.trim(),
+      })
 
       await registrarAudit('rechazar_excusa', 'excuses', rejectTarget.id, { comentario: comentario.trim() })
 

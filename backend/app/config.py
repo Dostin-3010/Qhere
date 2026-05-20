@@ -10,5 +10,6 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "qhere_secret_2024")
     JWT_SECRET_KEY = os.getenv("SECRET_KEY", "qhere_secret_2024")
     DEBUG = os.getenv("FLASK_DEBUG", "False") == "True"
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").strip().rstrip("/")
     SUPER_ADMIN_EMAIL = os.getenv("SUPER_ADMIN_EMAIL", "duspolsyttt@gmail.com").strip().lower()
     DIRECTOR_APPROVAL_EMAIL = os.getenv("DIRECTOR_APPROVAL_EMAIL", SUPER_ADMIN_EMAIL).strip().lower()

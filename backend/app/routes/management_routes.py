@@ -38,6 +38,14 @@ def _utcnow():
     return datetime.utcnow().isoformat()
 
 
+def _frontend_url(path=''):
+    base_url = Config.FRONTEND_URL or 'http://localhost:5173'
+    normalized_path = str(path or '').strip()
+    if not normalized_path:
+        return base_url
+    return f'{base_url}/{normalized_path.lstrip("/")}'
+
+
 def _normalize_role(value):
     role = str(value or '').strip().lower()
     return role if role in ['admin', 'teacher', 'parent'] else ''
@@ -578,6 +586,7 @@ def save_school_sections(school_id):
         return jsonify({'error': 'La lista de cursos no es valida.'}), 400
 
     normalized_sections = []
+    seen_section_keys = set()
     for section in sections:
         if not isinstance(section, dict):
             continue
@@ -587,13 +596,24 @@ def save_school_sections(school_id):
         turno = str(section.get('turno') or '').strip()
         if not grado or not seccion or turno not in ['manana', 'tarde', 'noche']:
             continue
+        section_key = f'{grado}::{seccion}::{turno}'
+        if section_key in seen_section_keys:
+            return jsonify({'error': f'La seccion {grado} {seccion} / {turno} esta duplicada.'}), 400
+        seen_section_keys.add(section_key)
+        special_schedule_enabled = bool(section.get('special_schedule_enabled'))
+        if special_schedule_enabled and (
+            not section.get('hora_entrada_especial')
+            or not section.get('hora_salida_especial')
+            or not section.get('hora_limite_tardanza_especial')
+        ):
+            return jsonify({'error': f'Completa el horario especial de {grado} {seccion}.'}), 400
 
         normalized_sections.append({
             'id': _normalize_optional_uuid(section.get('id')),
             'grado': grado,
             'seccion': seccion,
             'turno': turno,
-            'special_schedule_enabled': bool(section.get('special_schedule_enabled')),
+            'special_schedule_enabled': special_schedule_enabled,
             'hora_entrada_especial': section.get('hora_entrada_especial') or None,
             'hora_salida_especial': section.get('hora_salida_especial') or None,
             'hora_limite_tardanza_especial': section.get('hora_limite_tardanza_especial') or None,
@@ -658,6 +678,84 @@ def _send_director_request_email(payload):
             'Revisa la solicitud desde el panel absoluto de administracion.',
         ],
     )
+
+
+def _send_director_status_email(target, school, status, note=''):
+    approved = status == 'approved'
+    school_name = school.get('nombre') if school else 'tu centro'
+    subject = f'Solicitud de direccion {"aprobada" if approved else "rechazada"}'
+    body_lines = [
+        f'Hola {target.get("full_name") or "usuario"},',
+        '',
+        f'Tu solicitud para dirigir el centro "{school_name}" fue {"aprobada" if approved else "rechazada"}.',
+    ]
+
+    if note:
+        body_lines.extend(['', note])
+
+    body_lines.extend([
+        '',
+        f'Entrar a QHere: {_frontend_url("/login")}' if approved else 'Si necesitas mas informacion, contacta a administracion.',
+    ])
+
+    if approved:
+        body_lines.extend([
+            f'Establece tu contrasena: {_frontend_url("/reset-password")}',
+            '',
+            'Despues de entrar puedes abrir el enlace de cambio de contrasena para dejar una clave nueva.',
+        ])
+
+    return send_direct_email(target['email'], subject, body_lines)
+
+
+def _send_managed_user_access_email(role, full_name, email, password, school=None):
+    role_label = ROLE_LABELS.get(role, 'Usuario')
+    access_phrase = {
+        'teacher': 'Accede como docente y establece tu contrasena aqui',
+        'parent': 'Accede como padre/tutor y establece tu contrasena aqui',
+        'admin': 'Accede como director y establece tu contrasena aqui',
+    }.get(role, 'Accede a QHere y establece tu contrasena aqui')
+    school_name = school.get('nombre') if school else 'tu centro educativo'
+
+    return send_direct_email(
+        email,
+        f'Acceso a QHere como {role_label}',
+        [
+            f'Hola {full_name or "usuario"},',
+            '',
+            f'Tu cuenta de {role_label.lower()} fue creada en QHere para {school_name}.',
+            '',
+            f'Correo: {email}',
+            f'Contrasena temporal: {password}',
+            f'Entrar al sistema: {_frontend_url("/login")}',
+            f'{access_phrase}: {_frontend_url("/reset-password")}',
+            '',
+            'Primero entra con tu correo y la contrasena temporal. Luego abre el enlace para establecer una contrasena nueva.',
+        ],
+    )
+
+
+def _send_role_status_email(target, status, actor_profile=None, note=''):
+    approved = status == 'approved'
+    role_label = ROLE_LABELS.get(target.get('role'), 'Usuario')
+    subject = f'Rol de {role_label.lower()} {"aprobado" if approved else "rechazado"} en QHere'
+    body_lines = [
+        f'Hola {target.get("full_name") or "usuario"},',
+        '',
+        f'Tu rol de {role_label.lower()} fue {"aprobado" if approved else "rechazado"} en QHere.',
+    ]
+    if actor_profile and actor_profile.get('full_name'):
+        body_lines.append(f'Revisado por: {actor_profile.get("full_name")}')
+    if note:
+        body_lines.extend(['', note])
+    body_lines.extend([
+        '',
+        f'Entrar al sistema: {_frontend_url("/login")}' if approved else 'Si necesitas mas informacion, contacta a administracion.',
+    ])
+    if approved:
+        body_lines.append(f'Establece tu contrasena: {_frontend_url("/reset-password")}')
+
+    return send_direct_email(target['email'], subject, body_lines)
 
 
 @management_bp.route('/director-requests', methods=['POST'])
@@ -850,10 +948,21 @@ def create_managed_user():
             'school_id': school_id,
         })).execute()
 
+        notification_delivery = None
+        if role in ['teacher', 'parent', 'admin']:
+            notification_delivery = _send_managed_user_access_email(
+                role,
+                full_name,
+                email,
+                password,
+                _fetch_school(school_id),
+            )
+
         return jsonify({
             'message': f'{ROLE_LABELS.get(role, "Usuario")} creado correctamente.',
             'profile': payload,
             'generated_password': None if provided_password else password,
+            'notification_delivery': notification_delivery,
         }), 201
     except Exception as exc:
         return jsonify({'error': str(exc)}), 400
@@ -1141,6 +1250,7 @@ def assign_director_to_school(school_id):
             'school_id': school_id,
             'approval_status': 'approved',
         })
+        notification_delivery = _send_director_status_email(target, school, 'approved')
 
         return jsonify({
             'message': 'Centro y director vinculados correctamente.',
@@ -1149,6 +1259,7 @@ def assign_director_to_school(school_id):
             'director_name': target.get('full_name'),
             'profile_update_applied': profile_update_applied,
             'auth_metadata_updated': bool(auth_user),
+            'notification_delivery': notification_delivery,
         }), 200
     except Exception as exc:
         return jsonify({'error': str(exc)}), 400
@@ -1173,6 +1284,7 @@ def update_super_admin_user(profile_id):
     role = _normalize_role(data.get('role') or target.get('role'))
     school_id = _normalize_optional_uuid(data.get('school_id')) if 'school_id' in data else _normalize_optional_uuid(target.get('school_id'))
     approval_status = str(data.get('approval_status') or target.get('approval_status') or 'approved').strip().lower()
+    previous_approval_status = _resolve_approval_status_for_profile(target)
     permisos = data.get('permisos') if isinstance(data.get('permisos'), list) else target.get('permisos') or []
     secciones_ids = data.get('secciones_ids') if isinstance(data.get('secciones_ids'), list) else target.get('secciones_ids') or []
     margen_tardanza = data.get('margen_tardanza_minutos', target.get('margen_tardanza_minutos') or 30)
@@ -1229,7 +1341,29 @@ def update_super_admin_user(profile_id):
         if role == 'admin' and school_id:
             supabase.table('schools').update({'director': full_name}).eq('id', school_id).execute()
 
-        return jsonify({'profile': updated_profile, 'message': 'Usuario actualizado correctamente.'}), 200
+        notification_delivery = None
+        if approval_status != previous_approval_status and approval_status in ['approved', 'rejected']:
+            notification_target = {**target, **payload, 'role': role, 'email': email}
+            if role == 'admin':
+                notification_delivery = _send_director_status_email(
+                    notification_target,
+                    _fetch_school(school_id),
+                    approval_status,
+                    payload.get('approval_note') or '',
+                )
+            else:
+                notification_delivery = _send_role_status_email(
+                    notification_target,
+                    approval_status,
+                    actor_profile,
+                    payload.get('approval_note') or '',
+                )
+
+        return jsonify({
+            'profile': updated_profile,
+            'message': 'Usuario actualizado correctamente.',
+            'notification_delivery': notification_delivery,
+        }), 200
     except Exception as exc:
         return jsonify({'error': str(exc)}), 400
 
@@ -1291,6 +1425,9 @@ def update_director_status(profile_id, action):
     school = _fetch_school(school_id)
     note = str((request.get_json() or {}).get('note') or '').strip()
 
+    if normalized_action == 'approve' and not school:
+        return jsonify({'error': 'No se puede aprobar: la solicitud no tiene un centro educativo valido.'}), 400
+
     update_payload = _filter_profile_payload({
         'approval_status': 'approved' if normalized_action == 'approve' else 'rejected',
         'approved_by': actor_profile.get('id'),
@@ -1313,26 +1450,18 @@ def update_director_status(profile_id, action):
                 'director': target.get('full_name') or school.get('director'),
             }).eq('id', school['id']).execute()
 
-        try:
-            send_direct_email(
-                target['email'],
-                f'Solicitud de direccion {"aprobada" if normalized_action == "approve" else "rechazada"}',
-                [
-                    f'Hola {target.get("full_name") or "usuario"},',
-                    '',
-                    f'Tu solicitud para dirigir el centro "{school.get("nombre") if school else "tu centro"}" fue {"aprobada" if normalized_action == "approve" else "rechazada"}.',
-                    note or '',
-                    '',
-                    'Puedes iniciar sesion en QHere para continuar.' if normalized_action == 'approve' else 'Si necesitas mas informacion, responde a administracion.',
-                ],
-            )
-        except Exception:
-            pass
+        notification_delivery = _send_director_status_email(
+            target,
+            school,
+            'approved' if normalized_action == 'approve' else 'rejected',
+            note,
+        )
 
         return jsonify({
             'message': 'Estado actualizado correctamente.',
             'profile_id': profile_id,
             'approval_status': update_payload.get('approval_status', 'approved' if normalized_action == 'approve' else 'rejected'),
+            'notification_delivery': notification_delivery,
         }), 200
     except Exception as exc:
         return jsonify({'error': str(exc)}), 400

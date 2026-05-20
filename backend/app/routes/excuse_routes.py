@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 from flask import Blueprint, jsonify, request
 
 from ..supabase_client import get_supabase_client, get_supabase_settings
+from ..services.notification_service import send_direct_email
 
 excuse_bp = Blueprint('excuse', __name__)
 
@@ -22,6 +23,72 @@ ALLOWED_UPLOAD_MIME_TYPES = {
 }
 
 supabase = get_supabase_client()
+
+
+def _status_label(status):
+    return {
+        'approved': 'aprobada',
+        'rejected': 'rechazada',
+        'pending': 'pendiente',
+    }.get(str(status or '').lower(), str(status or 'actualizada'))
+
+
+def _send_excuse_review_email(excuse_id, status, reviewer_id=None):
+    try:
+        excuse_result = (
+            supabase.table('excuses')
+            .select('*, students(id, nombre, matricula), profiles:parent_id(id, full_name, email)')
+            .eq('id', excuse_id)
+            .single()
+            .execute()
+        )
+        excuse = excuse_result.data or {}
+    except Exception:
+        excuse = {}
+
+    if not excuse:
+        return None
+
+    parent = excuse.get('profiles') or {}
+    student = excuse.get('students') or {}
+    recipient_email = parent.get('email')
+    if not recipient_email:
+        return None
+
+    reviewer_name = ''
+    if reviewer_id:
+        try:
+            reviewer_result = (
+                supabase.table('profiles')
+                .select('full_name')
+                .eq('id', reviewer_id)
+                .single()
+                .execute()
+            )
+            reviewer_name = (reviewer_result.data or {}).get('full_name') or ''
+        except Exception:
+            reviewer_name = ''
+
+    status_text = _status_label(status)
+    subject = f'Excusa {status_text}: {student.get("nombre") or "estudiante"}'
+    body_lines = [
+        f'Hola {parent.get("full_name") or "familia"},',
+        '',
+        f'La excusa de {student.get("nombre") or "el estudiante"} para el {excuse.get("absence_date") or "dia indicado"} fue {status_text}.',
+        f'Matricula: {student.get("matricula") or "-"}',
+        f'Tipo: {excuse.get("excuse_type") or "-"}',
+    ]
+
+    if reviewer_name:
+        body_lines.append(f'Revisada por: {reviewer_name}')
+
+    body_lines.extend([
+        '',
+        'Puedes entrar a QHere para ver el estado actualizado.',
+        'QHere - Control de Asistencia',
+    ])
+
+    return send_direct_email(recipient_email, subject, body_lines)
 
 
 def _get_authenticated_context():
@@ -149,17 +216,26 @@ def create_excuse():
 def review_excuse(excuse_id):
     try:
         user_id, _profile = _get_authenticated_context()
+        if _profile.get('role') not in ['admin', 'teacher']:
+            return jsonify({'error': 'Solo direccion o docentes pueden revisar excusas'}), 403
+
         data = request.get_json()
         new_status = data.get('status')
 
         if new_status not in ['approved', 'rejected']:
             return jsonify({'error': 'Invalid status'}), 400
 
-        result = supabase.table('excuses').update({
+        update_payload = {
             'status': new_status,
             'reviewed_by': user_id,
             'reviewed_at': datetime.now(timezone.utc).isoformat()
-        }).eq('id', excuse_id).execute()
+        }
+        if data.get('teacher_comment') is not None:
+            update_payload['teacher_comment'] = str(data.get('teacher_comment') or '').strip() or None
+        if data.get('teacher_id') is not None or _profile.get('role') == 'teacher':
+            update_payload['teacher_id'] = data.get('teacher_id') or user_id
+
+        result = supabase.table('excuses').update(update_payload).eq('id', excuse_id).execute()
 
         if new_status == 'approved':
             excuse = supabase.table('excuses').select('student_id, absence_date').eq('id', excuse_id).single().execute()
@@ -167,6 +243,11 @@ def review_excuse(excuse_id):
                 'estado': 'justificado'
             }).eq('student_id', excuse.data['student_id']).eq('fecha', excuse.data['absence_date']).execute()
 
-        return jsonify(result.data), 200
+        notification_delivery = _send_excuse_review_email(excuse_id, new_status, user_id)
+
+        return jsonify({
+            'excuse': result.data,
+            'notification_delivery': notification_delivery,
+        }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400

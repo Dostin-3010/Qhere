@@ -2,14 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import {
-  assignDirectorToSchool,
   createManagedUser,
-  createSchool,
-  deleteSchool,
   deleteSuperAdminUser,
   fetchSuperAdminOverview,
   updateDirectorApproval,
-  updateSchool,
   updateSuperAdminUser,
 } from '../api/backendApi'
 import { useAuth } from '../context/AuthContext'
@@ -44,16 +40,6 @@ const EMPTY_USER_FORM = {
   school_id: '',
   approval_status: 'approved',
   password: '',
-}
-
-const EMPTY_SCHOOL_FORM = {
-  id: '',
-  nombre: '',
-  direccion: '',
-  telefono: '',
-  email: '',
-  director: '',
-  configurado: false,
 }
 
 const styles = `
@@ -322,6 +308,7 @@ const styles = `
   .sa2-badge.pending { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
   .sa2-badge.rejected { background: #fff1f2; color: #b91c1c; border-color: #fecdd3; }
   .sa2-badge.missing { background: #f5f5f4; color: #444; border-color: #dedede; }
+  .sa2-badge.info { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
   .sa2-card-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -351,6 +338,34 @@ const styles = `
     color: #666;
     font-size: .82rem;
     line-height: 1.45;
+  }
+  .sa2-request-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .sa2-request-box {
+    min-width: 0;
+    padding: 12px;
+    border-radius: 14px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+  }
+  .sa2-request-box span {
+    display: block;
+    color: #666;
+    font-size: .68rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .sa2-request-box strong {
+    display: block;
+    margin-top: 5px;
+    color: #111;
+    font-size: .88rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
   }
   .sa2-empty {
     margin: 18px;
@@ -433,8 +448,9 @@ const styles = `
   @media (max-width: 1020px) {
     .sa2-grid { grid-template-columns: 1fr; }
     .sa2-side { position: static; }
-    .sa2-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .sa2-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .sa2-card-list { grid-template-columns: 1fr; }
+    .sa2-request-grid { grid-template-columns: 1fr; }
   }
   @media (max-width: 720px) {
     .sa2-shell { padding: 12px; }
@@ -468,18 +484,6 @@ function normalizeUserForm(user = EMPTY_USER_FORM) {
   }
 }
 
-function normalizeSchoolForm(school = EMPTY_SCHOOL_FORM) {
-  return {
-    id: school.id || '',
-    nombre: school.nombre || '',
-    direccion: school.direccion || '',
-    telefono: school.telefono || '',
-    email: school.email || '',
-    director: school.director || '',
-    configurado: Boolean(school.configurado),
-  }
-}
-
 function formatDate(value) {
   if (!value) return 'Sin fecha'
   return new Date(value).toLocaleString('es-DO', {
@@ -496,14 +500,12 @@ export default function SuperAdminDashboard() {
   const { profile, signOut } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState('')
-  const [tab, setTab] = useState('users')
+  const [tab, setTab] = useState('requests')
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [userModal, setUserModal] = useState(null)
-  const [schoolModal, setSchoolModal] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [assignment, setAssignment] = useState({})
   const [formErrors, setFormErrors] = useState({})
   const [generatedAccess, setGeneratedAccess] = useState(null)
   const [overview, setOverview] = useState({
@@ -541,19 +543,45 @@ export default function SuperAdminDashboard() {
     [overview.schools],
   )
 
-  const assignableDirectors = useMemo(
-    () => overview.users.filter((user) =>
-      user.role === 'admin' &&
-      !isSuperAdminEmail(user.email) &&
-      user.auth_exists !== false &&
-      ['pending', 'approved'].includes(getStatus(user.approval_status))),
-    [overview.users],
-  )
-
   const pendingDirectors = useMemo(
     () => overview.users.filter((user) => user.role === 'admin' && getStatus(user.approval_status) === 'pending' && !isSuperAdminEmail(user.email)),
     [overview.users],
   )
+
+  const rejectedDirectors = useMemo(
+    () => overview.users.filter((user) => user.role === 'admin' && getStatus(user.approval_status) === 'rejected' && !isSuperAdminEmail(user.email)),
+    [overview.users],
+  )
+
+  const approvedSchoolIds = useMemo(
+    () => new Set(overview.users
+      .filter((user) => getStatus(user.approval_status) === 'approved' && user.school_id)
+      .map((user) => user.school_id)),
+    [overview.users],
+  )
+
+  const activeSchools = useMemo(
+    () => overview.schools.filter((school) => school.configurado || approvedSchoolIds.has(school.id)),
+    [approvedSchoolIds, overview.schools],
+  )
+
+  const pendingCenterRequests = useMemo(
+    () => pendingDirectors.map((director) => ({
+      director,
+      school: director.school || schoolsById[director.school_id] || null,
+    })),
+    [pendingDirectors, schoolsById],
+  )
+
+  const userSchoolOptions = useMemo(() => {
+    const selectedSchoolId = userModal?.form?.school_id
+    if (!selectedSchoolId || activeSchools.some((school) => school.id === selectedSchoolId)) {
+      return activeSchools
+    }
+
+    const selectedSchool = schoolsById[selectedSchoolId]
+    return selectedSchool ? [...activeSchools, selectedSchool] : activeSchools
+  }, [activeSchools, schoolsById, userModal?.form?.school_id])
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -582,24 +610,6 @@ export default function SuperAdminDashboard() {
       email: validateEmail(normalized.email, 'correo'),
       phone: normalized.phone ? validateDominicanPhone(normalized.phone) : '',
       password: !isEditing && normalized.password && normalized.password.length < 6 ? 'Minimo 6 caracteres.' : '',
-    }
-    setFormErrors(errors)
-    return Object.values(errors).some(Boolean) ? null : normalized
-  }
-
-  function validateSchoolForm(form) {
-    const normalized = {
-      ...form,
-      nombre: form.nombre.trim(),
-      direccion: form.direccion.trim(),
-      telefono: formatDominicanPhone(form.telefono),
-      email: form.email ? normalizeEmail(form.email) : '',
-      director: form.director.trim(),
-    }
-    const errors = {
-      nombre: normalized.nombre ? '' : 'El nombre es obligatorio.',
-      telefono: normalized.telefono ? validateDominicanPhone(normalized.telefono, { label: 'telefono del centro' }) : '',
-      email: normalized.email ? validateEmail(normalized.email, 'correo institucional') : '',
     }
     setFormErrors(errors)
     return Object.values(errors).some(Boolean) ? null : normalized
@@ -649,45 +659,12 @@ export default function SuperAdminDashboard() {
     }
   }
 
-  async function handleSaveSchool(event) {
-    event.preventDefault()
-    const isEditing = Boolean(schoolModal?.form?.id)
-    const normalized = validateSchoolForm(schoolModal.form)
-    if (!normalized) {
-      toast.error('Revisa los campos del centro.')
-      return
-    }
-
-    setSaving('school')
-    try {
-      if (isEditing) {
-        await updateSchool(normalized.id, normalized)
-        toast.success('Centro actualizado.')
-      } else {
-        await createSchool(normalized)
-        toast.success('Centro creado.')
-      }
-      setSchoolModal(null)
-      setFormErrors({})
-      await loadOverview()
-    } catch (error) {
-      toast.error(error.message || 'No se pudo guardar el centro.')
-    } finally {
-      setSaving('')
-    }
-  }
-
   async function handleDeleteConfirmed() {
     if (!deleteTarget) return
     setSaving('delete')
     try {
-      if (deleteTarget.type === 'user') {
-        await deleteSuperAdminUser(deleteTarget.item.id)
-        toast.success('Usuario eliminado.')
-      } else {
-        await deleteSchool(deleteTarget.item.id, { force: true })
-        toast.success('Centro eliminado con sus datos dependientes.')
-      }
+      await deleteSuperAdminUser(deleteTarget.item.id)
+      toast.success('Usuario eliminado.')
       setDeleteTarget(null)
       await loadOverview()
     } catch (error) {
@@ -710,43 +687,14 @@ export default function SuperAdminDashboard() {
     }
   }
 
-  async function handleAssignDirector(schoolId) {
-    const directorId = assignment[schoolId]
-    if (!directorId) {
-      toast.error('Selecciona un director.')
-      return
-    }
-
-    setSaving(`assign:${schoolId}`)
-    try {
-      await assignDirectorToSchool(schoolId, directorId)
-      toast.success('Director asignado.')
-      setAssignment((current) => ({ ...current, [schoolId]: '' }))
-      await loadOverview()
-    } catch (error) {
-      toast.error(error.message || 'No se pudo asignar el director.')
-    } finally {
-      setSaving('')
-    }
-  }
-
   function openUserModal(user = null) {
     setGeneratedAccess(null)
     setFormErrors({})
     setUserModal({ form: normalizeUserForm(user || EMPTY_USER_FORM) })
   }
 
-  function openSchoolModal(school = null) {
-    setFormErrors({})
-    setSchoolModal({ form: normalizeSchoolForm(school || EMPTY_SCHOOL_FORM) })
-  }
-
   function patchUserForm(patch) {
     setUserModal((current) => ({ ...current, form: { ...current.form, ...patch } }))
-  }
-
-  function patchSchoolForm(patch) {
-    setSchoolModal((current) => ({ ...current, form: { ...current.form, ...patch } }))
   }
 
   return (
@@ -776,19 +724,78 @@ export default function SuperAdminDashboard() {
                 <span>{profile?.email || 'Cuenta absoluta'}</span>
               </div>
               <div className="sa2-statgrid">
-                <div className="sa2-stat"><span>Centros</span><strong>{loading ? '--' : overview.stats.schools || 0}</strong></div>
+                <div className="sa2-stat"><span>Solicitudes</span><strong>{loading ? '--' : pendingCenterRequests.length}</strong></div>
+                <div className="sa2-stat"><span>Activos</span><strong>{loading ? '--' : activeSchools.length}</strong></div>
                 <div className="sa2-stat"><span>Usuarios</span><strong>{loading ? '--' : overview.stats.users || 0}</strong></div>
-                <div className="sa2-stat"><span>Directores</span><strong>{loading ? '--' : overview.stats.directors || 0}</strong></div>
-                <div className="sa2-stat"><span>Pendientes</span><strong>{loading ? '--' : pendingDirectors.length}</strong></div>
+                <div className="sa2-stat"><span>Rechazados</span><strong>{loading ? '--' : rejectedDirectors.length}</strong></div>
               </div>
               <nav className="sa2-tabs" aria-label="Secciones del super panel">
+                <button className={`sa2-tab${tab === 'requests' ? ' active' : ''}`} onClick={() => setTab('requests')} type="button">Centros solicitados</button>
                 <button className={`sa2-tab${tab === 'users' ? ' active' : ''}`} onClick={() => setTab('users')} type="button">Usuarios</button>
-                <button className={`sa2-tab${tab === 'schools' ? ' active' : ''}`} onClick={() => setTab('schools')} type="button">Centros</button>
-                <button className={`sa2-tab${tab === 'approvals' ? ' active' : ''}`} onClick={() => setTab('approvals')} type="button">Aprobaciones</button>
               </nav>
             </aside>
 
             <main className="sa2-panel">
+              {tab === 'requests' ? (
+                <>
+                  <div className="sa2-panel-head">
+                    <div>
+                      <h2>Centros solicitados</h2>
+                      <p>Solo aparecen centros enviados por directores que todavia esperan tu aprobacion.</p>
+                    </div>
+                    <span className="sa2-badge pending">{pendingCenterRequests.length} pendientes</span>
+                  </div>
+                  {loading ? (
+                    <div className="sa2-empty">Cargando solicitudes de centros...</div>
+                  ) : pendingCenterRequests.length === 0 ? (
+                    <div className="sa2-empty">No hay centros solicitados pendientes. Los centros rechazados quedan ocultos del login y los aprobados pasan a activos.</div>
+                  ) : (
+                    <div className="sa2-card-list">
+                      {pendingCenterRequests.map(({ director, school }) => (
+                        <article className="sa2-school" key={director.id}>
+                          <div className="sa2-school-top">
+                            <div>
+                              <h3>{school?.nombre || 'Centro sin registro visible'}</h3>
+                              <p>{school?.direccion || 'Sin direccion registrada'}</p>
+                              <p>{school?.email || 'Sin correo'} / {school?.telefono || 'Sin telefono'}</p>
+                            </div>
+                            <span className="sa2-badge pending">Pendiente</span>
+                          </div>
+
+                          <div className="sa2-request-grid">
+                            <div className="sa2-request-box">
+                              <span>Director solicitante</span>
+                              <strong>{director.full_name || 'Sin nombre'}</strong>
+                            </div>
+                            <div className="sa2-request-box">
+                              <span>Correo</span>
+                              <strong>{director.email}</strong>
+                            </div>
+                            <div className="sa2-request-box">
+                              <span>Telefono</span>
+                              <strong>{director.phone || 'Sin telefono'}</strong>
+                            </div>
+                            <div className="sa2-request-box">
+                              <span>Solicitud</span>
+                              <strong>{formatDate(director.approval_requested_at || director.created_at)}</strong>
+                            </div>
+                          </div>
+
+                          <div className="sa2-row">
+                            <button className="sa2-btn success" disabled={saving === `${director.id}:approve`} onClick={() => handleApproval(director, 'approve')} type="button">
+                              {saving === `${director.id}:approve` ? 'Aprobando...' : 'Aprobar centro y director'}
+                            </button>
+                            <button className="sa2-btn danger" disabled={saving === `${director.id}:reject`} onClick={() => handleApproval(director, 'reject')} type="button">
+                              {saving === `${director.id}:reject` ? 'Rechazando...' : 'Rechazar solicitud'}
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : null}
+
               {tab === 'users' ? (
                 <>
                   <div className="sa2-panel-head">
@@ -861,95 +868,6 @@ export default function SuperAdminDashboard() {
                 </>
               ) : null}
 
-              {tab === 'schools' ? (
-                <>
-                  <div className="sa2-panel-head">
-                    <div>
-                      <h2>Centros</h2>
-                      <p>Centros educativos, directores asignados y configuracion.</p>
-                    </div>
-                    <button className="sa2-btn primary" onClick={() => openSchoolModal()} type="button">Nuevo centro</button>
-                  </div>
-                  {loading ? (
-                    <div className="sa2-empty">Cargando centros...</div>
-                  ) : overview.schools.length === 0 ? (
-                    <div className="sa2-empty">No hay centros registrados.</div>
-                  ) : (
-                    <div className="sa2-card-list">
-                      {overview.schools.map((school) => (
-                        <article className="sa2-school" key={school.id}>
-                          <div className="sa2-school-top">
-                            <div>
-                              <h3>{school.nombre}</h3>
-                              <p>{school.direccion || 'Sin direccion'}</p>
-                              <p>{school.email || 'Sin correo'} · {school.telefono || 'Sin telefono'}</p>
-                            </div>
-                            <span className={`sa2-badge ${school.configurado ? 'approved' : 'pending'}`}>{school.configurado ? 'Configurado' : 'Pendiente'}</span>
-                          </div>
-                          <div>
-                            <div className="sa2-name">
-                              <strong>{school.director || 'Director pendiente'}</strong>
-                              <span>{school.id}</span>
-                            </div>
-                          </div>
-                          <div className="sa2-row">
-                            <select className="sa2-select" onChange={(event) => setAssignment((current) => ({ ...current, [school.id]: event.target.value }))} value={assignment[school.id] || ''}>
-                              <option value="">Asignar director</option>
-                              {assignableDirectors.map((director) => (
-                                <option key={director.id} value={director.id}>{director.full_name} - {director.email}</option>
-                              ))}
-                            </select>
-                            <button className="sa2-btn" disabled={saving === `assign:${school.id}`} onClick={() => handleAssignDirector(school.id)} type="button">
-                              {saving === `assign:${school.id}` ? 'Asignando...' : 'Asignar'}
-                            </button>
-                          </div>
-                          <div className="sa2-row">
-                            <button className="sa2-btn" onClick={() => openSchoolModal(school)} type="button">Editar</button>
-                            <button className="sa2-btn soft-danger" onClick={() => setDeleteTarget({ type: 'school', item: school })} type="button">Borrar centro</button>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : null}
-
-              {tab === 'approvals' ? (
-                <>
-                  <div className="sa2-panel-head">
-                    <div>
-                      <h2>Aprobaciones de directores</h2>
-                      <p>Solicitudes pendientes de acceso directivo.</p>
-                    </div>
-                    <span className="sa2-badge pending">{pendingDirectors.length} pendientes</span>
-                  </div>
-                  {loading ? (
-                    <div className="sa2-empty">Cargando solicitudes...</div>
-                  ) : pendingDirectors.length === 0 ? (
-                    <div className="sa2-empty">No hay directores pendientes.</div>
-                  ) : (
-                    <div className="sa2-card-list">
-                      {pendingDirectors.map((director) => (
-                        <article className="sa2-school" key={director.id}>
-                          <div className="sa2-school-top">
-                            <div>
-                              <h3>{director.full_name}</h3>
-                              <p>{director.email}</p>
-                              <p>{director.school?.nombre || schoolsById[director.school_id]?.nombre || 'Sin centro visible'}</p>
-                              <p>{formatDate(director.approval_requested_at || director.created_at)}</p>
-                            </div>
-                            <span className="sa2-badge pending">Pendiente</span>
-                          </div>
-                          <div className="sa2-row">
-                            <button className="sa2-btn success" disabled={saving === `${director.id}:approve`} onClick={() => handleApproval(director, 'approve')} type="button">Aprobar</button>
-                            <button className="sa2-btn danger" disabled={saving === `${director.id}:reject`} onClick={() => handleApproval(director, 'reject')} type="button">Rechazar</button>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : null}
             </main>
           </div>
         </div>
@@ -991,7 +909,7 @@ export default function SuperAdminDashboard() {
                   <label>Centro</label>
                   <select className="sa2-select" onChange={(event) => patchUserForm({ school_id: event.target.value })} value={userModal.form.school_id}>
                     <option value="">Sin centro</option>
-                    {overview.schools.map((school) => <option key={school.id} value={school.id}>{school.nombre}</option>)}
+                    {userSchoolOptions.map((school) => <option key={school.id} value={school.id}>{school.nombre}</option>)}
                   </select>
                 </div>
                 <div className="sa2-field">
@@ -1019,64 +937,16 @@ export default function SuperAdminDashboard() {
         </div>
       ) : null}
 
-      {schoolModal ? (
-        <div className="sa2-overlay" onMouseDown={() => setSchoolModal(null)}>
-          <form className="sa2-modal" onMouseDown={(event) => event.stopPropagation()} onSubmit={handleSaveSchool}>
-            <div className="sa2-modal-head">
-              <h2>{schoolModal.form.id ? 'Editar centro' : 'Nuevo centro'}</h2>
-              <button className="sa2-btn" onClick={() => setSchoolModal(null)} type="button">Cerrar</button>
-            </div>
-            <div className="sa2-form">
-              <div className="sa2-form-grid">
-                <div className="sa2-field">
-                  <label>Nombre</label>
-                  <input className={`sa2-input${formErrors.nombre ? ' invalid' : ''}`} onChange={(event) => patchSchoolForm({ nombre: event.target.value })} value={schoolModal.form.nombre} />
-                  {formErrors.nombre ? <span className="sa2-error">{formErrors.nombre}</span> : null}
-                </div>
-                <div className="sa2-field">
-                  <label>Director visible</label>
-                  <input className="sa2-input" onChange={(event) => patchSchoolForm({ director: event.target.value })} value={schoolModal.form.director} />
-                </div>
-                <div className="sa2-field">
-                  <label>Telefono</label>
-                  <input className={`sa2-input${formErrors.telefono ? ' invalid' : ''}`} inputMode="tel" maxLength={12} onChange={(event) => patchSchoolForm({ telefono: formatDominicanPhone(event.target.value) })} value={schoolModal.form.telefono} />
-                  {formErrors.telefono ? <span className="sa2-error">{formErrors.telefono}</span> : null}
-                </div>
-                <div className="sa2-field">
-                  <label>Correo</label>
-                  <input className={`sa2-input${formErrors.email ? ' invalid' : ''}`} maxLength={MAX_EMAIL_LENGTH} onChange={(event) => patchSchoolForm({ email: event.target.value })} type="email" value={schoolModal.form.email} />
-                  {formErrors.email ? <span className="sa2-error">{formErrors.email}</span> : null}
-                </div>
-              </div>
-              <div className="sa2-field">
-                <label>Direccion</label>
-                <input className="sa2-input" onChange={(event) => patchSchoolForm({ direccion: event.target.value })} value={schoolModal.form.direccion} />
-              </div>
-              <label className="sa2-row">
-                <input checked={schoolModal.form.configurado} onChange={(event) => patchSchoolForm({ configurado: event.target.checked })} type="checkbox" />
-                Centro configurado
-              </label>
-            </div>
-            <div className="sa2-modal-foot">
-              <button className="sa2-btn" onClick={() => setSchoolModal(null)} type="button">Cancelar</button>
-              <button className="sa2-btn primary" disabled={saving === 'school'} type="submit">{saving === 'school' ? 'Guardando...' : 'Guardar centro'}</button>
-            </div>
-          </form>
-        </div>
-      ) : null}
-
       {deleteTarget ? (
         <div className="sa2-overlay" onMouseDown={() => setDeleteTarget(null)}>
           <div className="sa2-modal" onMouseDown={(event) => event.stopPropagation()}>
             <div className="sa2-modal-head">
-              <h2>{deleteTarget.type === 'user' ? 'Borrar usuario' : 'Borrar centro'}</h2>
+              <h2>Borrar usuario</h2>
               <button className="sa2-btn" onClick={() => setDeleteTarget(null)} type="button">Cerrar</button>
             </div>
             <div className="sa2-confirm">
               <div className="sa2-warning">
-                {deleteTarget.type === 'user'
-                  ? `Se eliminara ${deleteTarget.item.full_name || deleteTarget.item.email} del panel y de Supabase Auth.`
-                  : `Se eliminara ${deleteTarget.item.nombre} junto con usuarios, estudiantes, secciones y datos dependientes de ese centro.`}
+                {`Se eliminara ${deleteTarget.item.full_name || deleteTarget.item.email} del panel y de Supabase Auth.`}
               </div>
             </div>
             <div className="sa2-modal-foot">

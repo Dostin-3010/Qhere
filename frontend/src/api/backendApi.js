@@ -146,3 +146,10 @@ export function deleteSuperAdminUser(profileId) {
     method: 'DELETE',
   })
 }
+
+export function reviewExcuse(excuseId, payload) {
+  return apiRequest(`/api/excuses/${excuseId}/review`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
